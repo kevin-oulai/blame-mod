@@ -42,7 +42,7 @@
 - **Fragment de Songe** : permet de voler ou ralentir le temps
 - **Boussole d’Âme** : guide vers des lieux importants
 - **Lanterne de l’Esprit** : éclaire et révèle des secrets invisibles
-- **Œil de l’Imagination** : rend visibles les entités cachées
+- **Œil de l’Imagination** : rend visibles les entités cachées 
 
 ---
 

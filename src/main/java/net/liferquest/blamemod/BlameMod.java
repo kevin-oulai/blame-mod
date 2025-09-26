@@ -1,12 +1,11 @@
-package net.liferquest.imaginarium;
+package net.liferquest.blamemod;
 
 import com.mojang.logging.LogUtils;
-import net.liferquest.imaginarium.block.ModBlocks;
-import net.liferquest.imaginarium.item.ModCreativeModTabs;
-import net.liferquest.imaginarium.item.ModItems;
+import net.liferquest.blamemod.block.ModBlocks;
+import net.liferquest.blamemod.item.ModCreativeModTabs;
+import net.liferquest.blamemod.item.ModItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.CreativeModeTabRegistry;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -21,14 +20,14 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/mods.toml file
-@Mod(Imaginarium.MOD_ID)
-public class Imaginarium {
+@Mod(BlameMod.MOD_ID)
+public class BlameMod {
     // Define mod id in a common place for everything to reference
-    public static final String MOD_ID = "imaginariummod";
+    public static final String MOD_ID = "blamemod";
     // Directly reference a slf4j logger
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public Imaginarium() {
+    public BlameMod() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
@@ -53,18 +52,12 @@ public class Imaginarium {
     // Add the example block item to the building blocks tab
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if(event.getTabKey() == CreativeModeTabs.COMBAT){
-            event.accept(ModItems.CREATION_TOTEM);
-            event.accept(ModItems.REVEAL_TOTEM);
-            event.accept(ModItems.SCULPTURE_TOTEM);
-            event.accept(ModItems.METAMORPHOSIS_TOTEM);
         }
 
         if(event.getTabKey() == CreativeModeTabs.INGREDIENTS){
-            event.accept(ModItems.RED_PAINT_TUBE);
         }
 
         if(event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS){
-            event.accept(ModBlocks.CRACKED_PORTAL_BLOCK);
         }
     }
 
