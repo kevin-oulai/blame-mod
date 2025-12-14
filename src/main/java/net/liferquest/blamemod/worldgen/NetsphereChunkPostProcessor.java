@@ -12,7 +12,6 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * Post-processes chunks in the Netsphere dimension to create canyon structures
  */
-@Mod.EventBusSubscriber(modid = BlameMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class NetsphereChunkPostProcessor {
     
     private static final int CANYON_CENTER_X = 0;

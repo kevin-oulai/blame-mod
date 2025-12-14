@@ -3,6 +3,7 @@ package net.liferquest.blamemod;
 import com.mojang.logging.LogUtils;
 import net.liferquest.blamemod.command.NetsphereCommand;
 import net.liferquest.blamemod.worldgen.ModBiomes;
+import net.liferquest.blamemod.worldgen.NetsphereChunkPostProcessor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -31,6 +32,7 @@ public class BlameMod {
         modEventBus.addListener(this::commonSetup);
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(NetsphereChunkPostProcessor.class);
 
         // Register custom biomes
         ModBiomes.register(modEventBus);
