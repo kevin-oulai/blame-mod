@@ -1,11 +1,9 @@
 package net.liferquest.blamemod.worldgen;
 
 import com.mojang.datafixers.util.Pair;
-import net.liferquest.blamemod.BlameMod;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.worldgen.BootstrapContext;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
