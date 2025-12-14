@@ -1,9 +1,11 @@
 package net.liferquest.blamemod;
 
 import com.mojang.logging.LogUtils;
+import net.liferquest.blamemod.command.NetsphereCommand;
 import net.liferquest.blamemod.worldgen.ModBiomes;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -30,7 +32,11 @@ public class BlameMod {
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
 
+        // Register custom biomes
         ModBiomes.register(modEventBus);
+        
+        // Note: Dimensions (LevelStems) are registered via JSON data files in data/blamemod/dimension/
+        // and data/blamemod/dimension_type/, not through DeferredRegister in 1.21+
 
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
@@ -46,6 +52,11 @@ public class BlameMod {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
 
+    }
+
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        NetsphereCommand.register(event.getDispatcher());
     }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
