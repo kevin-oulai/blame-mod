@@ -48,6 +48,7 @@ public class Config
         return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(ResourceLocation.tryParse(itemName));
     }
 
+    @SuppressWarnings("null")
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event)
     {
@@ -57,6 +58,7 @@ public class Config
 
         // convert the list of strings into a set of items
         items = ITEM_STRINGS.get().stream()
+                .filter(itemName -> itemName != null)
                 .map(itemName -> ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(itemName)))
                 .collect(Collectors.toSet());
     }

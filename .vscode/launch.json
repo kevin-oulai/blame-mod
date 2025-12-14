@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Minecraft Client (Gradle)",
+            "request": "launch",
+            "preLaunchTask": "runClient",
+            "mainClass": ""
+        },
+        {
+            "type": "java",
+            "name": "Minecraft Server (Gradle)",
+            "request": "launch",
+            "preLaunchTask": "runServer",
+            "mainClass": ""
+        }
+    ]
+}

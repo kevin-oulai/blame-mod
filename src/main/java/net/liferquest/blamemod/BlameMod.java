@@ -1,13 +1,9 @@
 package net.liferquest.blamemod;
 
 import com.mojang.logging.LogUtils;
-import net.liferquest.blamemod.block.ModBlocks;
-import net.liferquest.blamemod.item.ModCreativeModTabs;
-import net.liferquest.blamemod.item.ModItems;
-import net.minecraft.world.item.CreativeModeTabs;
+import net.liferquest.blamemod.worldgen.ModBiomes;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -34,13 +30,8 @@ public class BlameMod {
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
 
-        ModCreativeModTabs.register(modEventBus);
+        ModBiomes.register(modEventBus);
 
-        ModItems.register(modEventBus);
-        ModBlocks.register(modEventBus);
-
-        // Register the item to a creative tab
-        modEventBus.addListener(this::addCreative);
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
@@ -49,17 +40,7 @@ public class BlameMod {
 
     }
 
-    // Add the example block item to the building blocks tab
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if(event.getTabKey() == CreativeModeTabs.COMBAT){
-        }
 
-        if(event.getTabKey() == CreativeModeTabs.INGREDIENTS){
-        }
-
-        if(event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS){
-        }
-    }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
