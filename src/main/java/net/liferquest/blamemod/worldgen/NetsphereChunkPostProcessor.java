@@ -30,16 +30,24 @@ public class NetsphereChunkPostProcessor {
         }
         
         ChunkAccess chunk = event.getChunk();
-        
+
         // Only process if chunk is a LevelChunk (fully loaded)
-        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk)) {
+        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) {
             return;
         }
-        
-        processChunk(serverLevel, chunk);
+
+        processChunk(serverLevel, levelChunk);
     }
     
-    private static void processChunk(ServerLevel level, ChunkAccess chunk) {
+    private static final String PROCESSED_MARKER = "blamemod_processed";
+
+    private static void processChunk(ServerLevel level, net.minecraft.world.level.chunk.LevelChunk chunk) {
+        // Skip if already processed
+        var data = chunk.getPersistentData();
+        if (data.getBoolean(PROCESSED_MARKER)) {
+            return;
+        }
+
         int minY = level.getMinBuildHeight();
         int maxY = level.getMaxBuildHeight();
         
@@ -71,5 +79,6 @@ public class NetsphereChunkPostProcessor {
         
         // Mark chunk as modified
         chunk.setUnsaved(true);
+        data.putBoolean(PROCESSED_MARKER, true);
     }
 }
