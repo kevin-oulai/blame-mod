@@ -5,7 +5,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -33,8 +32,8 @@ public class NetsphereChunkPostProcessor {
         
         ChunkAccess chunk = event.getChunk();
         
-        // Only process fully generated chunks
-        if (!chunk.getStatus().equals(ChunkStatus.FULL)) {
+        // Only process if chunk is a LevelChunk (fully loaded)
+        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk)) {
             return;
         }
         
