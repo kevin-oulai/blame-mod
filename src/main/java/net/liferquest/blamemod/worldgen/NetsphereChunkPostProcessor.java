@@ -43,9 +43,9 @@ public class NetsphereChunkPostProcessor {
     private static final int LADDER_HEIGHT = 10; // blocks of ladder per placement
     
     // Ramp generation constants
-    private static final double RAMP_PROBABILITY = 0.3; // chance per floor per chunk
+    private static final double RAMP_PROBABILITY = 0.5; // chance per floor per chunk
     private static final long RAMP_SALT = 0x12A3445L;
-    private static final int RAMP_WIDTH = 5; // width in Z direction
+    private static final int RAMP_WIDTH = 7; // width in Z direction
     private static final int RAMP_DEPTH = 12; // depth into wall in X direction
 
     @SubscribeEvent
@@ -221,8 +221,14 @@ public class NetsphereChunkPostProcessor {
                             // Outside canyon: check for ramp first
                             int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
                             if (rampYOffset >= 0) {
-                                // In ramp area - always solid wall when not in floor layer
-                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                                // In ramp area - carve air for passage
+                                int floorBaseY = floorIndex * FLOOR_SPACING;
+                                int targetY = floorBaseY + rampYOffset;
+                                if (y < targetY) {
+                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                } else {
+                                    chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                                }
                             } else {
                                 // Not in ramp - normal solid wall
                                 chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
