@@ -38,7 +38,7 @@ public class NetsphereChunkPostProcessor {
     private static final long FLOOR_TYPE_SALT = 0xF1001E5FL;
     
     // Ladder generation constants
-    private static final double LADDER_PROBABILITY = 0.008; // very low chance per column
+    private static final double LADDER_PROBABILITY = 0.002; // very low chance per column
     private static final long LADDER_SALT = 0x1ADD31L;
     private static final int LADDER_HEIGHT = 10; // blocks of ladder per placement
     
@@ -95,8 +95,9 @@ public class NetsphereChunkPostProcessor {
                 double noise = valueNoise2D(floorSeed, worldX, worldZ, 24);
                 boolean hasFloorNoise = noise > FLOOR_THRESHOLD;
                 
-                // Check if this column should have ladders
-                boolean hasLadder = isInCanyon && hash01(level.getSeed() ^ LADDER_SALT, worldX, worldZ) < LADDER_PROBABILITY;
+                // Check if this column should have ladders (only near walls for support)
+                int distFromWall = isInCanyon ? (CANYON_HALF_WIDTH - distFromCenter) : Integer.MAX_VALUE;
+                boolean hasLadder = isInCanyon && distFromWall <= 2 && hash01(level.getSeed() ^ LADDER_SALT, worldX, worldZ) < LADDER_PROBABILITY;
 
                 for (int y = minY; y < maxY; y++) {
                     pos.set(chunkX + x, y, chunkZ + z);
@@ -114,7 +115,13 @@ public class NetsphereChunkPostProcessor {
                     } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
                         // Vary between 2-3 based on position
                         floorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-                        floorBlock = Blocks.POLISHED_ANDESITE.defaultBlockState();
+                        // Use slab for top layer, solid block for base
+                        int layerInFloor = modFloor(y, FLOOR_SPACING);
+                        if (layerInFloor == floorThickness - 1) {
+                            floorBlock = Blocks.POLISHED_ANDESITE_SLAB.defaultBlockState();
+                        } else {
+                            floorBlock = Blocks.POLISHED_ANDESITE.defaultBlockState();
+                        }
                     } else { // FLOOR_TYPE_BROKEN
                         floorThickness = 1; // thin but will be broken
                         floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
@@ -172,7 +179,11 @@ public class NetsphereChunkPostProcessor {
                         if (isInCanyon) {
                             // Place ladder if this column has ladders and Y is in ladder range
                             if (hasLadder && modFloor(y, LADDER_HEIGHT + FLOOR_SPACING) < LADDER_HEIGHT) {
-                                chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState(), false);
+                                // Determine ladder facing based on which side of canyon
+                                net.minecraft.core.Direction facing = worldX < centerX ? 
+                                    net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                                chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState()
+                                    .setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing), false);
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
