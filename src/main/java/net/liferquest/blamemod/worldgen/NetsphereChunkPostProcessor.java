@@ -97,7 +97,7 @@ public class NetsphereChunkPostProcessor {
                 
                 // Check if this column should have ladders (only near walls for support)
                 int distFromWall = isInCanyon ? (CANYON_HALF_WIDTH - distFromCenter) : Integer.MAX_VALUE;
-                boolean hasLadder = isInCanyon && distFromWall <= 2 && hash01(level.getSeed() ^ LADDER_SALT, worldX, worldZ) < LADDER_PROBABILITY;
+                boolean hasLadder = isInCanyon && distFromWall == 1 && hash01(level.getSeed() ^ LADDER_SALT, worldX, worldZ) < LADDER_PROBABILITY;
 
                 for (int y = minY; y < maxY; y++) {
                     pos.set(chunkX + x, y, chunkZ + z);
@@ -190,14 +190,25 @@ public class NetsphereChunkPostProcessor {
                     } else {
                         // Not a floor layer
                         if (isInCanyon) {
-                            // Place ladder if this column has ladders and Y is between floor base and next floor
+                            // Place ladder if this column has ladders
                             if (hasLadder) {
                                 int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
-                                int nextFloorY = (floorIndex + 1) * FLOOR_SPACING;
+                                int nextFloorIndex = floorIndex + 1;
+                                int nextFloorType = getFloorType(level.getSeed(), nextFloorIndex);
+                                int nextFloorThickness;
+                                if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
+                                    nextFloorThickness = 1;
+                                } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
+                                    nextFloorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
+                                } else {
+                                    nextFloorThickness = 1;
+                                }
+                                int nextFloorY = nextFloorIndex * FLOOR_SPACING + nextFloorThickness;
+                                
                                 if (y >= floorBaseY && y < nextFloorY) {
-                                    // Determine ladder facing toward the wall they're attached to
+                                    // Ladder faces away from center (toward wall)
                                     net.minecraft.core.Direction facing = worldX < centerX ? 
-                                        net.minecraft.core.Direction.WEST : net.minecraft.core.Direction.EAST;
+                                        net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
                                     chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState()
                                         .setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing), false);
                                 } else {
