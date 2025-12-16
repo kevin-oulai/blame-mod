@@ -229,8 +229,36 @@ public class NetsphereChunkPostProcessor {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
                         } else {
-                            // Outside canyon: normal solid wall (ramps already handled above)
-                            chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            // Outside canyon: check for facade carving
+                            if (isInFacadeBand(worldX, centerX)) {
+                                // Grid-aligned arch positions
+                                int gridX = modFloor(worldX, FACADE_HORIZONTAL_SPACING);
+                                int gridY = modFloor(y, FACADE_VERTICAL_SPACING);
+                                
+                                // Determine arch anchor using world-aligned grid
+                                int archAnchorX = worldX - gridX;
+                                int archAnchorY = y - gridY;
+                                
+                                // Use noise to determine if this grid cell has an arch
+                                double facadeNoise = hash01(level.getSeed() ^ FACADE_SALT, archAnchorX, archAnchorY);
+                                
+                                if (facadeNoise > FACADE_NOISE_THRESHOLD) {
+                                    // Check if inside arch shape using local coordinates
+                                    if (isInsideArch(gridX, gridY)) {
+                                        // Carve arch opening
+                                        chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                    } else {
+                                        // Keep as wall
+                                        chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                                    }
+                                } else {
+                                    // No arch in this grid cell
+                                    chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                                }
+                            } else {
+                                // Not in facade band - normal solid wall
+                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            }
                         }
                     }
                 }
