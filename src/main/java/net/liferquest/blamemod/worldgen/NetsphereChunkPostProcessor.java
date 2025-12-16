@@ -133,14 +133,13 @@ public class NetsphereChunkPostProcessor {
                     if (isFloorLayer && hasFloorNoise) {
                         if (isInCanyon) {
                             // Inside canyon: only place floor as ledge near walls
-                            int distFromWall = CANYON_HALF_WIDTH - distFromCenter;
                             if (distFromWall <= FLOOR_LEDGE) {
                                 // Apply erosion near canyon-facing edges (far from wall)
                                 boolean shouldErode = false;
                                 if (distFromWall > FLOOR_LEDGE - 3) {
                                     // Extra noise for erosion near canyon edge
                                     double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
-                                    shouldErode = erosionNoise < 0.4; // 40% chance to erode
+                                    shouldErode = erosionNoise < 0.15; // 15% chance to erode
                                 }
                                 
                                 if (!shouldErode) {
@@ -177,13 +176,19 @@ public class NetsphereChunkPostProcessor {
                     } else {
                         // Not a floor layer
                         if (isInCanyon) {
-                            // Place ladder if this column has ladders and Y is in ladder range
-                            if (hasLadder && modFloor(y, LADDER_HEIGHT + FLOOR_SPACING) < LADDER_HEIGHT) {
-                                // Determine ladder facing based on which side of canyon
-                                net.minecraft.core.Direction facing = worldX < centerX ? 
-                                    net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
-                                chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState()
-                                    .setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing), false);
+                            // Place ladder if this column has ladders and Y is between floor base and next floor
+                            if (hasLadder) {
+                                int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
+                                int nextFloorY = (floorIndex + 1) * FLOOR_SPACING;
+                                if (y >= floorBaseY && y < nextFloorY) {
+                                    // Determine ladder facing based on which side of canyon
+                                    net.minecraft.core.Direction facing = worldX < centerX ? 
+                                        net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                                    chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState()
+                                        .setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing), false);
+                                } else {
+                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                }
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
