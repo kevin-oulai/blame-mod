@@ -242,7 +242,20 @@ public class NetsphereChunkPostProcessor {
                                 // Use noise to determine if this grid cell has an arch
                                 double facadeNoise = hash01(level.getSeed() ^ FACADE_SALT, archAnchorX, archAnchorY);
                                 
-                                if (facadeNoise > FACADE_NOISE_THRESHOLD) {
+                                // Apply floor-type-specific carving thresholds
+                                boolean shouldCarve = false;
+                                if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
+                                    // Type 0: always carve
+                                    shouldCarve = facadeNoise > FACADE_NOISE_THRESHOLD;
+                                } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
+                                    // Type 1: carve only if noise > 0.5
+                                    shouldCarve = facadeNoise > 0.5;
+                                } else if (floorType == FLOOR_TYPE_BROKEN) {
+                                    // Type 2: carve rarely (noise > 0.75)
+                                    shouldCarve = facadeNoise > 0.75;
+                                }
+                                
+                                if (shouldCarve) {
                                     // Check if inside arch shape using local coordinates
                                     if (isInsideArch(gridX, gridY)) {
                                         // Carve arch opening
