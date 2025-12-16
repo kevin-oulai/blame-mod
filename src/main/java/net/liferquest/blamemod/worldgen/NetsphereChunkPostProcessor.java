@@ -26,6 +26,27 @@ public class NetsphereChunkPostProcessor {
     private static final int FLOOR_LEDGE = 10;       // how far ledges extend into canyon
     private static final double FLOOR_THRESHOLD = 0.35; // noise threshold for ledge placement
     private static final long FLOOR_NOISE_SALT = 0x5EED1E5FL; // salt for floor noise
+    
+    // Floor type constants
+    private static final int FLOOR_TYPE_CLEAN_SLAB = 0;
+    private static final int FLOOR_TYPE_INDUSTRIAL = 1;
+    private static final int FLOOR_TYPE_BROKEN = 2;
+    /**
+     * Salt value used for floor type terrain generation.
+     * Applied to noise functions to create variation in floor block placement.
+     */
+    private static final long FLOOR_TYPE_SALT = 0xF1001E5FL;
+    
+    // Ladder generation constants
+    private static final double LADDER_PROBABILITY = 0.008; // very low chance per column
+    private static final long LADDER_SALT = 0x1ADD31L;
+    private static final int LADDER_HEIGHT = 10; // blocks of ladder per placement
+    
+    // Ramp generation constants
+    private static final double RAMP_PROBABILITY = 0.3; // chance per floor per chunk
+    private static final long RAMP_SALT = 0x12A3445L;
+    private static final int RAMP_WIDTH = 5; // width in Z direction
+    private static final int RAMP_DEPTH = 12; // depth into wall in X direction
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -73,32 +94,98 @@ public class NetsphereChunkPostProcessor {
                 // Sample noise once per column for floor generation
                 double noise = valueNoise2D(floorSeed, worldX, worldZ, 24);
                 boolean hasFloorNoise = noise > FLOOR_THRESHOLD;
+                
+                // Check if this column should have ladders
+                boolean hasLadder = isInCanyon && hash01(level.getSeed() ^ LADDER_SALT, worldX, worldZ) < LADDER_PROBABILITY;
 
                 for (int y = minY; y < maxY; y++) {
                     pos.set(chunkX + x, y, chunkZ + z);
                     
+                    // Compute floor index and type
+                    int floorIndex = floorDiv(y, FLOOR_SPACING);
+                    int floorType = getFloorType(level.getSeed(), floorIndex);
+                    
+                    // Determine thickness based on floor type
+                    int floorThickness;
+                    net.minecraft.world.level.block.state.BlockState floorBlock;
+                    if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
+                        floorThickness = 1; // thin slab
+                        floorBlock = Blocks.SMOOTH_STONE.defaultBlockState();
+                    } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
+                        // Vary between 2-3 based on position
+                        floorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
+                        floorBlock = Blocks.POLISHED_ANDESITE.defaultBlockState();
+                    } else { // FLOOR_TYPE_BROKEN
+                        floorThickness = 1; // thin but will be broken
+                        floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+                    }
+                    
                     // Check if this Y is within a floor layer
-                    boolean isFloorLayer = modFloor(y, FLOOR_SPACING) < FLOOR_THICKNESS;
+                    boolean isFloorLayer = modFloor(y, FLOOR_SPACING) < floorThickness;
                     
                     if (isFloorLayer && hasFloorNoise) {
                         if (isInCanyon) {
                             // Inside canyon: only place floor as ledge near walls
                             int distFromWall = CANYON_HALF_WIDTH - distFromCenter;
                             if (distFromWall <= FLOOR_LEDGE) {
-                                chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
+                                // Apply erosion near canyon-facing edges
+                                boolean shouldErode = false;
+                                if (distFromWall < 3) {
+                                    // Extra noise for erosion near edge
+                                    double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
+                                    shouldErode = erosionNoise < 0.4; // 40% chance to erode
+                                }
+                                
+                                if (!shouldErode) {
+                                    chunk.setBlockState(pos, floorBlock, false);
+                                } else {
+                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                }
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
                         } else {
-                            // Outside canyon: place floor
-                            chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
+                            // Outside canyon: check for ramp
+                            int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
+                            if (rampYOffset >= 0) {
+                                // In ramp area - check if we should carve (air) or place stairs
+                                int floorBaseY = floorIndex * FLOOR_SPACING;
+                                int targetY = floorBaseY + rampYOffset;
+                                
+                                if (y == targetY) {
+                                    // Place stair at ramp level
+                                    chunk.setBlockState(pos, Blocks.STONE_STAIRS.defaultBlockState(), false);
+                                } else if (y < targetY) {
+                                    // Below ramp - leave as air
+                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                } else {
+                                    // Above ramp - solid wall
+                                    chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                                }
+                            } else {
+                                // Not in ramp - place floor
+                                chunk.setBlockState(pos, floorBlock, false);
+                            }
                         }
                     } else {
                         // Not a floor layer
                         if (isInCanyon) {
-                            chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                            // Place ladder if this column has ladders and Y is in ladder range
+                            if (hasLadder && modFloor(y, LADDER_HEIGHT + FLOOR_SPACING) < LADDER_HEIGHT) {
+                                chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState(), false);
+                            } else {
+                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                            }
                         } else {
-                            chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            // Outside canyon: check for ramp first
+                            int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
+                            if (rampYOffset >= 0) {
+                                // In ramp area - always solid wall when not in floor layer
+                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            } else {
+                                // Not in ramp - normal solid wall
+                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            }
                         }
                     }
                 }
@@ -177,6 +264,52 @@ public class NetsphereChunkPostProcessor {
         double v0 = lerp(v00, v10, tx);
         double v1 = lerp(v01, v11, tx);
         return lerp(v0, v1, tz);
+    }
+
+    // Deterministic floor type based on floor index
+    private static int getFloorType(long seed, int floorIndex) {
+        long h = (seed ^ FLOOR_TYPE_SALT) ^ (floorIndex * 0x9E3779B97F4A7C15L);
+        h ^= (h >>> 30);
+        h *= 0xBF58476D1CE4E5B9L;
+        h ^= (h >>> 27);
+        h *= 0x94D049BB133111EBL;
+        h ^= (h >>> 31);
+        
+        // Map to [0, 3) then floor to get 0, 1, or 2
+        int type = (int)((h & 0x7FFFFFFFL) % 3);
+        return type;
+    }
+    
+    // Check if chunk has ramp for given floor index, and if so, return ramp Z center
+    private static int getRampZCenter(long seed, int chunkX, int chunkZ, int floorIndex) {
+        double prob = hash01(seed ^ RAMP_SALT, chunkX, chunkZ + floorIndex * 1000);
+        if (prob < RAMP_PROBABILITY) {
+            // Has ramp, determine Z position within chunk
+            int zOffset = (int)(hash01(seed ^ RAMP_SALT ^ 0x999L, chunkX, chunkZ + floorIndex * 1000) * 16);
+            return chunkZ + zOffset;
+        }
+        return Integer.MIN_VALUE; // no ramp
+    }
+    
+    // Returns Y offset for ramp at given position, or -1 if not in ramp
+    private static int getRampYOffset(long seed, int chunkX, int chunkZ, int floorIndex, int worldX, int worldZ, int centerX) {
+        int rampZCenter = getRampZCenter(seed, chunkX, chunkZ, floorIndex);
+        if (rampZCenter == Integer.MIN_VALUE) return -1;
+        
+        // Check if in ramp Z range
+        int distZ = Math.abs(worldZ - rampZCenter);
+        if (distZ >= RAMP_WIDTH / 2) return -1;
+        
+        // Check if in wall on one side of canyon
+        int distFromCenter = Math.abs(worldX - centerX);
+        if (distFromCenter < CANYON_HALF_WIDTH) return -1; // inside canyon
+        
+        // In wall - check depth into wall
+        int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+        if (distIntoWall >= RAMP_DEPTH) return -1; // too far into wall
+        
+        // Ramp rises 1 block per 1-2 blocks horizontally
+        return distIntoWall / 2;
     }
 
     private static int floorDiv(int a, int b) {
