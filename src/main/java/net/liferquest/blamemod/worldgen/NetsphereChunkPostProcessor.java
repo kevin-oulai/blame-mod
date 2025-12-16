@@ -47,6 +47,14 @@ public class NetsphereChunkPostProcessor {
     private static final long RAMP_SALT = 0x12A3445L;
     private static final int RAMP_WIDTH = 7; // width in Z direction
     private static final int RAMP_DEPTH = 3; // depth into wall in X direction (shallow, against canyon)
+    
+    // Facade carving constants
+    private static final int FACADE_BAND_THICKNESS = 2; // thickness of decorative band
+    private static final int FACADE_HORIZONTAL_SPACING = 8; // spacing between features horizontally
+    private static final int FACADE_VERTICAL_SPACING = 12; // spacing between features vertically
+    private static final int FACADE_ARCH_SIZE = 3; // size of carved arches/openings
+    private static final double FACADE_NOISE_THRESHOLD = 0.4; // noise threshold for placement
+    private static final long FACADE_SALT = 0xFACADE5L;
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
