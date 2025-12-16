@@ -43,7 +43,7 @@ public class NetsphereChunkPostProcessor {
     private static final int LADDER_HEIGHT = 10; // blocks of ladder per placement
     
     // Ramp generation constants
-    private static final double RAMP_PROBABILITY = 0.5; // chance per floor per chunk
+    private static final double RAMP_PROBABILITY = 1.0; // chance per floor per chunk
     private static final long RAMP_SALT = 0x12A3445L;
     private static final int RAMP_WIDTH = 7; // width in Z direction
     private static final int RAMP_DEPTH = 12; // depth into wall in X direction
@@ -138,6 +138,28 @@ public class NetsphereChunkPostProcessor {
                     // Check if this Y is within a floor layer
                     boolean isFloorLayer = modFloor(y, FLOOR_SPACING) < floorThickness;
                     
+                    // Check for ramp first (before erosion logic)
+                    if (!isInCanyon) {
+                        int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
+                        if (rampYOffset >= 0) {
+                            // In ramp area
+                            int floorBaseY = floorIndex * FLOOR_SPACING;
+                            int targetY = floorBaseY + rampYOffset;
+                            
+                            if (isFloorLayer && y == targetY) {
+                                // Place stair at ramp level
+                                chunk.setBlockState(pos, Blocks.STONE_STAIRS.defaultBlockState(), false);
+                            } else if (y < targetY) {
+                                // Below ramp - carve air
+                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                            } else {
+                                // Above ramp - solid wall
+                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            }
+                            continue; // Skip normal floor/wall logic
+                        }
+                    }
+                    
                     // For broken floors (type 2), apply erosion only to slabs
                     boolean canErode = hasFloorNoise;
                     if (floorType == FLOOR_TYPE_BROKEN && floorBlock == Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()) {
@@ -165,27 +187,8 @@ public class NetsphereChunkPostProcessor {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
                         } else {
-                            // Outside canyon: check for ramp
-                            int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
-                            if (rampYOffset >= 0) {
-                                // In ramp area - check if we should carve (air) or place stairs
-                                int floorBaseY = floorIndex * FLOOR_SPACING;
-                                int targetY = floorBaseY + rampYOffset;
-                                
-                                if (y == targetY) {
-                                    // Place stair at ramp level
-                                    chunk.setBlockState(pos, Blocks.STONE_STAIRS.defaultBlockState(), false);
-                                } else if (y < targetY) {
-                                    // Below ramp - leave as air
-                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                } else {
-                                    // Above ramp - solid wall
-                                    chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
-                                }
-                            } else {
-                                // Not in ramp - place floor
-                                chunk.setBlockState(pos, floorBlock, false);
-                            }
+                            // Outside canyon: place floor (ramps already handled above)
+                            chunk.setBlockState(pos, floorBlock, false);
                         }
                     } else {
                         // Not a floor layer
@@ -218,21 +221,8 @@ public class NetsphereChunkPostProcessor {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
                         } else {
-                            // Outside canyon: check for ramp first
-                            int rampYOffset = getRampYOffset(level.getSeed(), chunkX, chunkZ, floorIndex, worldX, worldZ, centerX);
-                            if (rampYOffset >= 0) {
-                                // In ramp area - carve air for passage
-                                int floorBaseY = floorIndex * FLOOR_SPACING;
-                                int targetY = floorBaseY + rampYOffset;
-                                if (y < targetY) {
-                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                } else {
-                                    chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
-                                }
-                            } else {
-                                // Not in ramp - normal solid wall
-                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
-                            }
+                            // Outside canyon: normal solid wall (ramps already handled above)
+                            chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
                         }
                     }
                 }
@@ -333,18 +323,17 @@ public class NetsphereChunkPostProcessor {
     }
     
     // Check if chunk has ramp for given floor index, and if so, return ramp Z center
-    private static int getRampZCenter(long seed, int chunkX, int chunkZ, int floorIndex) {
-        // Use chunk position divided by 16 for proper chunk-based randomness
-        int chunkPosX = chunkX / 16;
-        int chunkPosZ = chunkZ / 16;
-        double prob = hash01(seed ^ RAMP_SALT, chunkPosX + floorIndex * 1000, chunkPosZ);
-        if (prob < RAMP_PROBABILITY) {
-            // Has ramp, determine Z position within chunk
-            int zOffset = (int)(hash01(seed ^ RAMP_SALT ^ 0x999L, chunkPosX, chunkPosZ + floorIndex * 1000) * 16);
-            return chunkZ + zOffset;
-        }
-        return Integer.MIN_VALUE; // no ramp
+    private static int getRampZCenter(long seed, int chunkBlockX, int chunkBlockZ, int floorIndex) {
+        int chunkX = chunkBlockX >> 4;
+        int chunkZ = chunkBlockZ >> 4;
+
+        long h = seed ^ RAMP_SALT ^ (long) floorIndex * 1315423911L ^ chunkX * 73428767L ^ chunkZ;
+        if ((h & 0xFF) >= (int)(RAMP_PROBABILITY * 256)) return Integer.MIN_VALUE;
+
+        int zOffset = (int) ((h >>> 8) & 15); // 0–15
+        return (chunkZ << 4) + zOffset;
     }
+
     
     // Returns Y offset for ramp at given position, or -1 if not in ramp
     private static int getRampYOffset(long seed, int chunkX, int chunkZ, int floorIndex, int worldX, int worldZ, int centerX) {
