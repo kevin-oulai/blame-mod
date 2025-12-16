@@ -131,7 +131,7 @@ public class NetsphereChunkPostProcessor {
                             floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
                         } else {
                             // Use slab when no wall above
-                            floorBlock = Blocks.LIGHT_GRAY_CONCRETE_SLAB.defaultBlockState();
+                            floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
                         }
                     }
                     
@@ -150,8 +150,8 @@ public class NetsphereChunkPostProcessor {
                             if (distFromWall <= FLOOR_LEDGE) {
                                 // Apply erosion near canyon-facing edges (far from wall)
                                 boolean shouldErode = false;
-                                if (distFromWall > FLOOR_LEDGE - 3) {
-                                    // Extra noise for erosion near canyon edge
+                                if (distFromWall == FLOOR_LEDGE) {
+                                    // Extra noise for erosion on outermost block only
                                     double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
                                     shouldErode = erosionNoise < 0.15; // 15% chance to erode
                                 }
@@ -195,9 +195,9 @@ public class NetsphereChunkPostProcessor {
                                 int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
                                 int nextFloorY = (floorIndex + 1) * FLOOR_SPACING;
                                 if (y >= floorBaseY && y < nextFloorY) {
-                                    // Determine ladder facing based on which side of canyon
+                                    // Determine ladder facing toward the wall they're attached to
                                     net.minecraft.core.Direction facing = worldX < centerX ? 
-                                        net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                                        net.minecraft.core.Direction.WEST : net.minecraft.core.Direction.EAST;
                                     chunk.setBlockState(pos, Blocks.LADDER.defaultBlockState()
                                         .setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing), false);
                                 } else {
@@ -317,10 +317,13 @@ public class NetsphereChunkPostProcessor {
     
     // Check if chunk has ramp for given floor index, and if so, return ramp Z center
     private static int getRampZCenter(long seed, int chunkX, int chunkZ, int floorIndex) {
-        double prob = hash01(seed ^ RAMP_SALT, chunkX, chunkZ + floorIndex * 1000);
+        // Use chunk position divided by 16 for proper chunk-based randomness
+        int chunkPosX = chunkX / 16;
+        int chunkPosZ = chunkZ / 16;
+        double prob = hash01(seed ^ RAMP_SALT, chunkPosX + floorIndex * 1000, chunkPosZ);
         if (prob < RAMP_PROBABILITY) {
             // Has ramp, determine Z position within chunk
-            int zOffset = (int)(hash01(seed ^ RAMP_SALT ^ 0x999L, chunkX, chunkZ + floorIndex * 1000) * 16);
+            int zOffset = (int)(hash01(seed ^ RAMP_SALT ^ 0x999L, chunkPosX, chunkPosZ + floorIndex * 1000) * 16);
             return chunkZ + zOffset;
         }
         return Integer.MIN_VALUE; // no ramp
