@@ -198,7 +198,12 @@ public class NetsphereChunkPostProcessor {
 
     // Returns centerX for a given worldZ, smoothly varying.
     private static int computeCanyonCenterX(ServerLevel level, int worldZ) {
-        long seed = level.getSeed() ^ 0xC0FFEE1234ABCDL;
+        return computeCanyonCenterX(level.getSeed(), worldZ);
+    }
+    
+    // Public method for external use (e.g., commands)
+    public static int computeCanyonCenterX(long seed, int worldZ) {
+        seed = seed ^ 0xC0FFEE1234ABCDL;
 
         int z0 = floorDiv(worldZ, ANCHOR_STEP) * ANCHOR_STEP;
         int z1 = z0 + ANCHOR_STEP;

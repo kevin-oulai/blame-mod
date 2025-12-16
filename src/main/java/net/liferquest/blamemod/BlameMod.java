@@ -1,6 +1,7 @@
 package net.liferquest.blamemod;
 
 import com.mojang.logging.LogUtils;
+import net.liferquest.blamemod.command.CanyonInfoCommand;
 import net.liferquest.blamemod.command.NetsphereCommand;
 import net.liferquest.blamemod.worldgen.ModBiomes;
 import net.liferquest.blamemod.worldgen.NetsphereChunkPostProcessor;
@@ -17,6 +18,8 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
+
+// Gradle command: ./gradlew runClient
 
 // The value here should match an entry in the META-INF/mods.toml file
 @Mod(BlameMod.MOD_ID)
@@ -59,6 +62,7 @@ public class BlameMod {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         NetsphereCommand.register(event.getDispatcher());
+        CanyonInfoCommand.register(event.getDispatcher());
     }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
