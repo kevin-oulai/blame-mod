@@ -373,6 +373,31 @@ public class NetsphereChunkPostProcessor {
         return distIntoWall < FACADE_BAND_THICKNESS;
     }
 
+    // Returns true if point is inside a simple arch shape (rectangle + semicircle top)
+    private static boolean isInsideArch(int localX, int localY) {
+        int width = FACADE_ARCH_SIZE;
+        int height = FACADE_ARCH_SIZE * 2;
+        
+        // Check bounds
+        if (localX < 0 || localX >= width || localY < 0 || localY >= height) {
+            return false;
+        }
+        
+        // Bottom half is always inside (rectangular pillar)
+        if (localY < height / 2) {
+            return true;
+        }
+        
+        // Top half is semicircular arch
+        double centerX = width / 2.0;
+        double radius = width / 2.0;
+        double dx = localX - centerX + 0.5; // center of block
+        double dy = localY - (height / 2.0) + 0.5;
+        
+        // Inside if within semicircle and above the midpoint
+        return (dx * dx + dy * dy) <= (radius * radius);
+    }
+
     private static int floorDiv(int a, int b) {
         int r = a / b;
         // correct toward -infinity
