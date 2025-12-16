@@ -46,7 +46,7 @@ public class NetsphereChunkPostProcessor {
     private static final double RAMP_PROBABILITY = 1.0; // chance per floor per chunk
     private static final long RAMP_SALT = 0x12A3445L;
     private static final int RAMP_WIDTH = 7; // width in Z direction
-    private static final int RAMP_DEPTH = 12; // depth into wall in X direction
+    private static final int RAMP_DEPTH = 3; // depth into wall in X direction (shallow, against canyon)
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
