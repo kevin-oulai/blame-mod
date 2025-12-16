@@ -135,10 +135,10 @@ public class NetsphereChunkPostProcessor {
                             // Inside canyon: only place floor as ledge near walls
                             int distFromWall = CANYON_HALF_WIDTH - distFromCenter;
                             if (distFromWall <= FLOOR_LEDGE) {
-                                // Apply erosion near canyon-facing edges
+                                // Apply erosion near canyon-facing edges (far from wall)
                                 boolean shouldErode = false;
-                                if (distFromWall < 3) {
-                                    // Extra noise for erosion near edge
+                                if (distFromWall > FLOOR_LEDGE - 3) {
+                                    // Extra noise for erosion near canyon edge
                                     double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
                                     shouldErode = erosionNoise < 0.4; // 40% chance to erode
                                 }
