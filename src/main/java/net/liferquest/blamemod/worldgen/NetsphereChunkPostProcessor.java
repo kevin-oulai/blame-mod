@@ -124,13 +124,27 @@ public class NetsphereChunkPostProcessor {
                         }
                     } else { // FLOOR_TYPE_BROKEN
                         floorThickness = 1; // thin but will be broken
-                        floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+                        // Check if block above will be solid wall (for structural support)
+                        boolean hasWallAbove = !isInCanyon || distFromWall > FLOOR_LEDGE;
+                        if (hasWallAbove) {
+                            // Use full block when supporting wall above
+                            floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+                        } else {
+                            // Use slab when no wall above
+                            floorBlock = Blocks.LIGHT_GRAY_CONCRETE_SLAB.defaultBlockState();
+                        }
                     }
                     
                     // Check if this Y is within a floor layer
                     boolean isFloorLayer = modFloor(y, FLOOR_SPACING) < floorThickness;
                     
-                    if (isFloorLayer && hasFloorNoise) {
+                    // For broken floors (type 2), apply erosion only to slabs
+                    boolean canErode = hasFloorNoise;
+                    if (floorType == FLOOR_TYPE_BROKEN && floorBlock == Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()) {
+                        canErode = true; // Full blocks always place
+                    }
+                    
+                    if (isFloorLayer && canErode) {
                         if (isInCanyon) {
                             // Inside canyon: only place floor as ledge near walls
                             if (distFromWall <= FLOOR_LEDGE) {
