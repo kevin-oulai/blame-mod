@@ -364,6 +364,15 @@ public class NetsphereChunkPostProcessor {
         return distIntoWall / 2;
     }
 
+    // Returns true if position is in the facade carving band (just inside canyon wall)
+    private static boolean isInFacadeBand(int worldX, int centerX) {
+        int distFromCenter = Math.abs(worldX - centerX);
+        if (distFromCenter < CANYON_HALF_WIDTH) return false; // inside canyon
+        
+        int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+        return distIntoWall < FACADE_BAND_THICKNESS;
+    }
+
     private static int floorDiv(int a, int b) {
         int r = a / b;
         // correct toward -infinity
