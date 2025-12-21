@@ -183,10 +183,37 @@ public class NetsphereChunkPostProcessor {
                         canErode = true;
                     }
 
+                    // Check if there's a ladder at this position (needed for floor carving)
+                    boolean isLadderPosition = false;
+                    net.minecraft.core.Direction ladderFacing = null;
+                    if (isInCanyon && hasLadder) {
+                        int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
+                        int nextFloorIndex = floorIndex + 1;
+                        int nextFloorType = getFloorType(level.getSeed(), nextFloorIndex);
+                        int nextFloorThickness;
+                        if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
+                            nextFloorThickness = 1;
+                        } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
+                            nextFloorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
+                        } else {
+                            nextFloorThickness = 1;
+                        }
+                        int nextFloorY = nextFloorIndex * FLOOR_SPACING + nextFloorThickness;
+                        
+                        if (y >= floorBaseY && y <= nextFloorY) {
+                            isLadderPosition = true;
+                            ladderFacing = worldX < centerX ? net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                        }
+                    }
+
                     if (isFloorLayer && canErode) {
                         if (isInCanyon) {
                             // Inside canyon: only place ledges near walls
-                            if (distFromWall <= FLOOR_LEDGE) {
+                            // But carve out space for ladders
+                            if (isLadderPosition) {
+                                // Carve through floor for ladder
+                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                            } else if (distFromWall <= FLOOR_LEDGE) {
                                 boolean shouldErode = false;
                                 if (distFromWall == FLOOR_LEDGE) {
                                     double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
@@ -214,36 +241,13 @@ public class NetsphereChunkPostProcessor {
                     } else {
                         // Not a floor layer
                         if (isInCanyon) {
-                            if (hasLadder) {
-                                int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
-
-                                int nextFloorIndex = floorIndex + 1;
-                                int nextFloorType = getFloorType(level.getSeed(), nextFloorIndex);
-
-                                int nextFloorThickness;
-                                if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
-                                    nextFloorThickness = 1;
-                                } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
-                                    nextFloorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-                                } else {
-                                    nextFloorThickness = 1;
-                                }
-
-                                int nextFloorY = nextFloorIndex * FLOOR_SPACING + nextFloorThickness;
-
-                                if (y >= floorBaseY && y < nextFloorY) {
-                                    net.minecraft.core.Direction facing = worldX < centerX
-                                            ? net.minecraft.core.Direction.EAST
-                                            : net.minecraft.core.Direction.WEST;
-
-                                    chunk.setBlockState(
-                                            pos,
-                                            Blocks.LADDER.defaultBlockState().setValue(net.minecraft.world.level.block.LadderBlock.FACING, facing),
-                                            false
-                                    );
-                                } else {
-                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                }
+                            if (isLadderPosition && ladderFacing != null) {
+                                // Place ladder block
+                                chunk.setBlockState(
+                                        pos,
+                                        Blocks.LADDER.defaultBlockState().setValue(net.minecraft.world.level.block.LadderBlock.FACING, ladderFacing),
+                                        false
+                                );
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
