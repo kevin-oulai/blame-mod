@@ -191,33 +191,48 @@ public class NetsphereChunkPostProcessor {
                     // -------------------------
                     // BRIDGE GENERATION (megabridges)
                     // -------------------------
-                    if (isInCanyon) {
-                        int floorTopY = floorIndex * FLOOR_SPACING + floorThickness;
-                        int segZ = floorDiv(worldZ, BRIDGE_SEGMENT_Z);
+                    int floorTopY = floorIndex * FLOOR_SPACING + floorThickness;
+                    int segZ = floorDiv(worldZ, BRIDGE_SEGMENT_Z);
+                    boolean hasBridge = hasMegabridge(level.getSeed(), floorIndex, segZ);
+                    int bridgeZCenter = hasBridge ? megabridgeZCenter(level.getSeed(), floorIndex, segZ) : 0;
+                    int distZ = hasBridge ? Math.abs(worldZ - bridgeZCenter) : Integer.MAX_VALUE;
+                    boolean inBridgeZRange = hasBridge && distZ <= MEGABRIDGE_WIDTH / 2;
+                    
+                    if (isInCanyon && inBridgeZRange) {
+                        // Support beam 1 block below centerline
+                        if (y == floorTopY - 2) {
+                            chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                            continue;
+                        }
                         
-                        if (hasMegabridge(level.getSeed(), floorIndex, segZ)) {
-                            int bridgeZCenter = megabridgeZCenter(level.getSeed(), floorIndex, segZ);
-                            int distZ = Math.abs(worldZ - bridgeZCenter);
-                            
-                            if (distZ <= MEGABRIDGE_WIDTH / 2) {
-                                // Support beam 1 block below centerline
-                                if (y == floorTopY - 2) {
-                                    chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
-                                    continue;
+                        // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
+                        if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                            // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
+                            if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                // Top and bottom layers use polished deepslate
+                                chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                            } else {
+                                // Middle layers use smooth stone
+                                chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                            }
+                            continue;
+                        }
+                    }
+                    
+                    // Bridge anchors embedded in walls (1-2 blocks into wall)
+                    if (!isInCanyon && inBridgeZRange) {
+                        int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+                        // Anchor blocks in [CANYON_HALF_WIDTH, CANYON_HALF_WIDTH+2] (1-2 blocks into wall)
+                        if (distIntoWall >= 0 && distIntoWall < 2) {
+                            // Same Y range as bridge
+                            if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                // Use darker material for anchor housings
+                                if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                    chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                                } else {
+                                    chunk.setBlockState(pos, Blocks.DEEPSLATE_TILES.defaultBlockState(), false);
                                 }
-                                
-                                // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
-                                if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                    // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
-                                    if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                        // Top and bottom layers use polished deepslate
-                                        chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
-                                    } else {
-                                        // Middle layers use smooth stone
-                                        chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
-                                    }
-                                    continue;
-                                }
+                                continue;
                             }
                         }
                     }
