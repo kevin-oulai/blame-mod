@@ -22,6 +22,7 @@ public class NetsphereChunkPostProcessor {
     private static final int FLOOR_SPACING = 14;        // vertical distance between floors
     private static final int FLOOR_THICKNESS = 2;       // (unused because thickness varies by type; safe to keep)
     private static final int FLOOR_LEDGE = 10;          // how far ledges extend into canyon
+    private static final int FLOOR_WALL_EXTENT = 5;      // how far floors extend into walls from canyon edge
     private static final double FLOOR_THRESHOLD = 0.35; // noise threshold for ledge placement
     private static final long FLOOR_NOISE_SALT = 0x5EED1E5FL; // salt for floor noise
 
@@ -201,8 +202,14 @@ public class NetsphereChunkPostProcessor {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             }
                         } else {
-                            // Outside canyon: normal floor band
-                            chunk.setBlockState(pos, floorBlock, false);
+                            // Outside canyon: only place floors within limited distance from canyon edge
+                            int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+                            if (distIntoWall <= FLOOR_WALL_EXTENT) {
+                                chunk.setBlockState(pos, floorBlock, false);
+                            } else {
+                                // Too far into wall - don't place floor
+                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            }
                         }
                     } else {
                         // Not a floor layer
