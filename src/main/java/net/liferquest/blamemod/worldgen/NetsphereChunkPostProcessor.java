@@ -471,6 +471,16 @@ public class NetsphereChunkPostProcessor {
         return segZ * BRIDGE_SEGMENT_Z + offset;
     }
 
+    // Returns the X coordinate of the left wall face at the given canyon center
+    private static int leftWallXAt(int centerX) {
+        return centerX - CANYON_HALF_WIDTH;
+    }
+
+    // Returns the X coordinate of the right wall face at the given canyon center
+    private static int rightWallXAt(int centerX) {
+        return centerX + CANYON_HALF_WIDTH;
+    }
+
     // Helper class to hold vertical shaft information
     private static class ShaftInfo {
         final int shaftX;
