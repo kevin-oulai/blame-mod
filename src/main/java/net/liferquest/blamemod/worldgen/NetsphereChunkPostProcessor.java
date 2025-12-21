@@ -198,25 +198,38 @@ public class NetsphereChunkPostProcessor {
                     int distZ = hasBridge ? Math.abs(worldZ - bridgeZCenter) : Integer.MAX_VALUE;
                     boolean inBridgeZRange = hasBridge && distZ <= MEGABRIDGE_WIDTH / 2;
                     
+                    // Check if bridge is broken (deterministic break chance)
+                    boolean isBridgeBroken = false;
+                    if (hasBridge) {
+                        double breakChance = hash01(level.getSeed() ^ MEGABRIDGE_SALT ^ 0xDEADL, floorIndex, segZ);
+                        isBridgeBroken = breakChance < 0.3; // 30% chance to be broken (adjust as needed)
+                    }
+                    
                     if (isInCanyon && inBridgeZRange) {
-                        // Support beam 1 block below centerline
-                        if (y == floorTopY - 2) {
-                            chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
-                            continue;
-                        }
+                        // Check if we're in the broken middle section
+                        boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
                         
-                        // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
-                        if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                            // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
-                            if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                // Top and bottom layers use polished deepslate
-                                chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
-                            } else {
-                                // Middle layers use smooth stone
-                                chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                        if (!inBrokenSection) {
+                            // Support beam 1 block below centerline
+                            if (y == floorTopY - 2) {
+                                chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                                continue;
                             }
-                            continue;
+                            
+                            // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
+                            if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
+                                if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                    // Top and bottom layers use polished deepslate
+                                    chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                                } else {
+                                    // Middle layers use smooth stone
+                                    chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                }
+                                continue;
+                            }
                         }
+                        // If inBrokenSection, leave as air (don't place bridge blocks)
                     }
                     
                     // Bridge anchors embedded in walls (1-2 blocks into wall)
