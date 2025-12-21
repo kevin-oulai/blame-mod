@@ -65,6 +65,17 @@ public class NetsphereChunkPostProcessor {
     private static final double CORRIDOR_BRANCH_PROBABILITY = 0.15; // chance to branch at each step
     private static final int CORRIDOR_MAX_BRANCHES = 3; // max branches per corridor
 
+    // Bridge generation constants
+    private static final int BRIDGE_SEGMENT_Z = 256; // Z segment size for bridge placement
+    private static final double MEGABRIDGE_PROB = 0.06; // probability for megabridges
+    private static final double WALKWAY_PROB = 0.12; // probability for walkways
+    private static final int MEGABRIDGE_HALF_THICKNESS = 2; // vertical thickness = 2*+1 (so 5 blocks total)
+    private static final int MEGABRIDGE_WIDTH = 5; // width in Z direction
+    private static final int WALKWAY_WIDTH = 2; // width in Z direction
+    private static final int WALKWAY_THICKNESS = 1; // vertical thickness
+    private static final long MEGABRIDGE_SALT = 0xE3A4B01D63L;
+    private static final long WALKWAY_SALT = 0x4A1C4A41L;
+
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
         // Only process on server side
