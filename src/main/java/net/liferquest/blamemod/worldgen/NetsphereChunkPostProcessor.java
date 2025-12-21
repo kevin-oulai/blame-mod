@@ -441,6 +441,18 @@ public class NetsphereChunkPostProcessor {
         return (int) ((h & 0x7FFFFFFFL) % 3);
     }
 
+    // Check if a megabridge exists at the given floor and segment
+    private static boolean hasMegabridge(long seed, int floorIndex, int segZ) {
+        double prob = hash01(seed ^ MEGABRIDGE_SALT, floorIndex, segZ);
+        return prob < MEGABRIDGE_PROB;
+    }
+
+    // Check if a walkway exists at the given floor and segment
+    private static boolean hasWalkway(long seed, int floorIndex, int segZ) {
+        double prob = hash01(seed ^ WALKWAY_SALT, floorIndex, segZ);
+        return prob < WALKWAY_PROB;
+    }
+
     // Helper class to hold vertical shaft information
     private static class ShaftInfo {
         final int shaftX;
