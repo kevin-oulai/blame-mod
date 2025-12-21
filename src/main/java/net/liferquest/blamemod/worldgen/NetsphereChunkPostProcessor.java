@@ -250,6 +250,42 @@ public class NetsphereChunkPostProcessor {
                         }
                     }
 
+                    // -------------------------
+                    // WALKWAY GENERATION
+                    // -------------------------
+                    if (isInCanyon) {
+                        boolean hasWalk = hasWalkway(level.getSeed(), floorIndex, segZ);
+                        int walkwayZCenter = hasWalk ? walkwayZCenter(level.getSeed(), floorIndex, segZ) : 0;
+                        int walkwayDistZ = hasWalk ? Math.abs(worldZ - walkwayZCenter) : Integer.MAX_VALUE;
+                        boolean inWalkwayZRange = hasWalk && walkwayDistZ <= WALKWAY_WIDTH / 2;
+                        
+                        if (inWalkwayZRange) {
+                            int walkwayY = floorTopY; // or floorTopY+1, using floorTopY for now
+                            
+                            // Railing at walkway edges
+                            if (walkwayDistZ == WALKWAY_WIDTH / 2 && y == walkwayY + 1) {
+                                chunk.setBlockState(pos, Blocks.IRON_BARS.defaultBlockState(), false);
+                                continue;
+                            }
+                            
+                            // Walkway blocks: thickness WALKWAY_THICKNESS at walkwayY
+                            if (y >= walkwayY && y < walkwayY + WALKWAY_THICKNESS) {
+                                int layerInWalkway = y - walkwayY;
+                                if (layerInWalkway == 0) {
+                                    // Bottom layer: IRON_BLOCK
+                                    chunk.setBlockState(pos, Blocks.IRON_BLOCK.defaultBlockState(), false);
+                                } else if (layerInWalkway == WALKWAY_THICKNESS - 1) {
+                                    // Top layer: LIGHT_GRAY_CONCRETE
+                                    chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
+                                } else {
+                                    // Middle layers: SMOOTH_STONE
+                                    chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
                     // Erosion / placement rules
                     boolean canErode = hasFloorNoise;
                     if (floorType == FLOOR_TYPE_BROKEN && floorBlock == Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()) {
