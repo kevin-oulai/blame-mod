@@ -262,6 +262,18 @@ public class NetsphereChunkPostProcessor {
                         if (inWalkwayZRange) {
                             int walkwayY = floorTopY; // or floorTopY+1, using floorTopY for now
                             
+                            // Check if walkway is hanging variant (rare)
+                            boolean isHanging = hasWalk && hash01(level.getSeed() ^ WALKWAY_SALT ^ 0x14A6B1L, floorIndex, segZ) < 0.15;
+                            
+                            // Hanging chains: place CHAIN blocks above walkway at intervals
+                            if (isHanging && (worldX & 3) == 0) {
+                                // Chains from walkwayY+6 down to walkwayY+1
+                                if (y >= walkwayY + 1 && y <= walkwayY + 6) {
+                                    chunk.setBlockState(pos, Blocks.CHAIN.defaultBlockState(), false);
+                                    continue;
+                                }
+                            }
+                            
                             // Railing at walkway edges
                             if (walkwayDistZ == WALKWAY_WIDTH / 2 && y == walkwayY + 1) {
                                 chunk.setBlockState(pos, Blocks.IRON_BARS.defaultBlockState(), false);
