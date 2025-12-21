@@ -660,4 +660,123 @@ public class NetsphereChunkPostProcessor {
         if (r < 0) r += m;
         return r;
     }
+
+    /**
+     * Finds a safe spawn location in the Netsphere dimension
+     * @param level The server level
+     * @param preferredX Preferred X coordinate (will be adjusted to be in canyon)
+     * @param preferredZ Preferred Z coordinate
+     * @return BlockPos with safe spawn location, or null if none found
+     */
+    public static net.minecraft.core.BlockPos findSafeSpawnLocation(ServerLevel level, int preferredX, int preferredZ) {
+        long seed = level.getSeed();
+        int minY = level.getMinBuildHeight();
+        int maxY = Math.min(level.getMaxBuildHeight(), 256);
+        
+        // Calculate canyon center at preferred Z
+        int canyonCenterX = computeCanyonCenterX(seed, preferredZ);
+        
+        // Find a safe X position inside the canyon (not too close to walls, near center)
+        // Try positions from center outward
+        int[] xOffsets = {0, 10, -10, 20, -20, 30, -30, 40, -40, 50, -50, 60, -60, 70, -70};
+        
+        for (int xOffset : xOffsets) {
+            int testX = canyonCenterX + xOffset;
+            int distFromCenter = Math.abs(testX - canyonCenterX);
+            
+            // Must be inside canyon (with some margin from walls)
+            if (distFromCenter >= CANYON_HALF_WIDTH - 5) continue;
+            
+            // Try to find a safe Y position on a floor
+            // Check floors from middle of build height downward, then upward
+            int startFloor = (minY + maxY) / 2 / FLOOR_SPACING;
+            
+                    // Check floors downward first
+            for (int floorOffset = 0; floorOffset < 20; floorOffset++) {
+                int floorIndex = startFloor - floorOffset;
+                if (floorIndex < 0) break;
+                
+                int floorBaseY = floorIndex * FLOOR_SPACING;
+                int floorType = getFloorType(seed, floorIndex);
+                int floorThickness;
+                if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
+                    floorThickness = 1;
+                } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
+                    floorThickness = 2 + (hash01(seed ^ FLOOR_TYPE_SALT, testX, preferredZ) > 0.5 ? 1 : 0);
+                } else {
+                    floorThickness = 1;
+                }
+                int floorTopY = floorBaseY + floorThickness;
+                
+                // Check if this floor is in valid Y range
+                if (floorTopY < minY || floorTopY >= maxY) continue;
+                
+                // Check if there's a solid floor block and air above
+                net.minecraft.core.BlockPos floorPos = new net.minecraft.core.BlockPos(testX, floorTopY, preferredZ);
+                net.minecraft.core.BlockPos abovePos = floorPos.above();
+                
+                // Ensure chunks are loaded
+                if (!level.isLoaded(floorPos) || !level.isLoaded(abovePos)) {
+                    level.getChunk(floorPos);
+                    level.getChunk(abovePos);
+                }
+                
+                if (level.isLoaded(floorPos) && level.isLoaded(abovePos)) {
+                    var floorState = level.getBlockState(floorPos);
+                    var aboveState = level.getBlockState(abovePos);
+                    
+                    // Check if floor is solid and above is air (or passable)
+                    if (floorState.canOcclude() && (aboveState.isAir() || aboveState.getCollisionShape(level, abovePos).isEmpty())) {
+                        // Found a safe spawn location
+                        return abovePos; // Spawn on top of floor
+                    }
+                }
+            }
+            
+            // Also check floors upward
+            for (int floorOffset = 1; floorOffset < 20; floorOffset++) {
+                int floorIndex = startFloor + floorOffset;
+                
+                int floorBaseY = floorIndex * FLOOR_SPACING;
+                int floorType = getFloorType(seed, floorIndex);
+                int floorThickness;
+                if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
+                    floorThickness = 1;
+                } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
+                    floorThickness = 2 + (hash01(seed ^ FLOOR_TYPE_SALT, testX, preferredZ) > 0.5 ? 1 : 0);
+                } else {
+                    floorThickness = 1;
+                }
+                int floorTopY = floorBaseY + floorThickness;
+                
+                // Check if this floor is in valid Y range
+                if (floorTopY < minY || floorTopY >= maxY) continue;
+                
+                // Check if there's a solid floor block and air above
+                net.minecraft.core.BlockPos floorPos = new net.minecraft.core.BlockPos(testX, floorTopY, preferredZ);
+                net.minecraft.core.BlockPos abovePos = floorPos.above();
+                
+                // Ensure chunks are loaded
+                if (!level.isLoaded(floorPos) || !level.isLoaded(abovePos)) {
+                    level.getChunk(floorPos);
+                    level.getChunk(abovePos);
+                }
+                
+                if (level.isLoaded(floorPos) && level.isLoaded(abovePos)) {
+                    var floorState = level.getBlockState(floorPos);
+                    var aboveState = level.getBlockState(abovePos);
+                    
+                    // Check if floor is solid and above is air (or passable)
+                    if (floorState.canOcclude() && (aboveState.isAir() || aboveState.getCollisionShape(level, abovePos).isEmpty())) {
+                        // Found a safe spawn location
+                        return abovePos; // Spawn on top of floor
+                    }
+                }
+            }
+        }
+        
+        // Fallback: return a position near canyon center at a reasonable Y
+        int fallbackY = Math.max(minY + 64, (minY + maxY) / 2);
+        return new net.minecraft.core.BlockPos(canyonCenterX, fallbackY, preferredZ);
+    }
 }

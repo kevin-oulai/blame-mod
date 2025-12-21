@@ -3,8 +3,10 @@ package net.liferquest.blamemod.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.liferquest.blamemod.worldgen.ModDimensions;
+import net.liferquest.blamemod.worldgen.NetsphereChunkPostProcessor;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,19 +48,25 @@ public class NetsphereCommand {
         }
         
         // Get current position
-        double x = player.getX();
-        double z = player.getZ();
+        int currentX = player.blockPosition().getX();
+        int currentZ = player.blockPosition().getZ();
         
-        // Find safe Y position (spawn point or default)
-        double y = netsphereLevel.getSharedSpawnPos().getY();
-        if (y < netsphereLevel.getMinBuildHeight()) {
-            y = netsphereLevel.getMinBuildHeight() + 64; // Safe default height
+        // Find safe spawn location (inside canyon, on a floor)
+        BlockPos safePos = NetsphereChunkPostProcessor.findSafeSpawnLocation(netsphereLevel, currentX, currentZ);
+        
+        if (safePos == null) {
+            source.sendFailure(Component.literal("Could not find a safe spawn location!"));
+            return 0;
         }
         
-        // Teleport the player
-        player.teleportTo(netsphereLevel, x, y, z, player.getYRot(), player.getXRot());
+        // Ensure the chunk is loaded
+        netsphereLevel.getChunk(safePos);
         
-        source.sendSuccess(() -> Component.literal("Teleported to the Netsphere!"), true);
+        // Teleport the player to safe location
+        player.teleportTo(netsphereLevel, safePos.getX() + 0.5, safePos.getY() + 0.1, safePos.getZ() + 0.5, player.getYRot(), player.getXRot());
+        
+        source.sendSuccess(() -> Component.literal(String.format("Teleported to the Netsphere at (%d, %d, %d)!", 
+                safePos.getX(), safePos.getY(), safePos.getZ())), true);
         return 1;
     }
 }
