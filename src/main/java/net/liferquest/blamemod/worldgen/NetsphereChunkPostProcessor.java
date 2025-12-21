@@ -453,6 +453,24 @@ public class NetsphereChunkPostProcessor {
         return prob < WALKWAY_PROB;
     }
 
+    // Returns deterministic Z center for a megabridge within the segment
+    private static int megabridgeZCenter(long seed, int floorIndex, int segZ) {
+        double offsetFrac = hash01(seed ^ MEGABRIDGE_SALT ^ 0xBEEFL, floorIndex, segZ);
+        int offset = (int) (offsetFrac * BRIDGE_SEGMENT_Z);
+        // Clamp to ensure int-cast safety (offset in [0, BRIDGE_SEGMENT_Z))
+        if (offset >= BRIDGE_SEGMENT_Z) offset = BRIDGE_SEGMENT_Z - 1;
+        return segZ * BRIDGE_SEGMENT_Z + offset;
+    }
+
+    // Returns deterministic Z center for a walkway within the segment
+    private static int walkwayZCenter(long seed, int floorIndex, int segZ) {
+        double offsetFrac = hash01(seed ^ WALKWAY_SALT ^ 0xCAFEL, floorIndex, segZ);
+        int offset = (int) (offsetFrac * BRIDGE_SEGMENT_Z);
+        // Clamp to ensure int-cast safety (offset in [0, BRIDGE_SEGMENT_Z))
+        if (offset >= BRIDGE_SEGMENT_Z) offset = BRIDGE_SEGMENT_Z - 1;
+        return segZ * BRIDGE_SEGMENT_Z + offset;
+    }
+
     // Helper class to hold vertical shaft information
     private static class ShaftInfo {
         final int shaftX;
