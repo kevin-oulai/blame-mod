@@ -184,9 +184,12 @@ public class NetsphereChunkPostProcessor {
                     }
 
                     // Check if there's a ladder at this position (needed for floor carving)
+                    // Since hasLadder is deterministic per (x,z), check if we're in any floor's ladder range
                     boolean isLadderPosition = false;
                     net.minecraft.core.Direction ladderFacing = null;
+                    
                     if (isInCanyon && hasLadder) {
+                        // Check current floor's ladder range
                         int floorBaseY = floorIndex * FLOOR_SPACING + floorThickness;
                         int nextFloorIndex = floorIndex + 1;
                         int nextFloorType = getFloorType(level.getSeed(), nextFloorIndex);
@@ -203,6 +206,28 @@ public class NetsphereChunkPostProcessor {
                         if (y >= floorBaseY && y <= nextFloorY) {
                             isLadderPosition = true;
                             ladderFacing = worldX < centerX ? net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                        } else {
+                            // Also check if we're in the previous floor's ladder range (for next floor's floor layers)
+                            int prevFloorIndex = floorIndex - 1;
+                            if (prevFloorIndex >= 0) {
+                                int prevFloorBaseY = prevFloorIndex * FLOOR_SPACING;
+                                int prevFloorType = getFloorType(level.getSeed(), prevFloorIndex);
+                                int prevFloorThickness;
+                                if (prevFloorType == FLOOR_TYPE_CLEAN_SLAB) {
+                                    prevFloorThickness = 1;
+                                } else if (prevFloorType == FLOOR_TYPE_INDUSTRIAL) {
+                                    prevFloorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
+                                } else {
+                                    prevFloorThickness = 1;
+                                }
+                                int prevFloorTopY = prevFloorBaseY + prevFloorThickness;
+                                
+                                // Previous floor's ladder extends to current floor's top (nextFloorY)
+                                if (y >= prevFloorTopY && y <= nextFloorY) {
+                                    isLadderPosition = true;
+                                    ladderFacing = worldX < centerX ? net.minecraft.core.Direction.EAST : net.minecraft.core.Direction.WEST;
+                                }
+                            }
                         }
                     }
 
