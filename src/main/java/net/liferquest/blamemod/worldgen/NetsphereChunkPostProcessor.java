@@ -188,6 +188,40 @@ public class NetsphereChunkPostProcessor {
                     }
                     }
 
+                    // -------------------------
+                    // BRIDGE GENERATION (megabridges)
+                    // -------------------------
+                    if (isInCanyon) {
+                        int floorTopY = floorIndex * FLOOR_SPACING + floorThickness;
+                        int segZ = floorDiv(worldZ, BRIDGE_SEGMENT_Z);
+                        
+                        if (hasMegabridge(level.getSeed(), floorIndex, segZ)) {
+                            int bridgeZCenter = megabridgeZCenter(level.getSeed(), floorIndex, segZ);
+                            int distZ = Math.abs(worldZ - bridgeZCenter);
+                            
+                            if (distZ <= MEGABRIDGE_WIDTH / 2) {
+                                // Support beam 1 block below centerline
+                                if (y == floorTopY - 2) {
+                                    chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                                    continue;
+                                }
+                                
+                                // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
+                                if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                    // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
+                                    if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                        // Top and bottom layers use polished deepslate
+                                        chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                                    } else {
+                                        // Middle layers use smooth stone
+                                        chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                    }
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
                     // Erosion / placement rules
                     boolean canErode = hasFloorNoise;
                     if (floorType == FLOOR_TYPE_BROKEN && floorBlock == Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()) {
