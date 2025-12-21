@@ -715,13 +715,15 @@ public class NetsphereChunkPostProcessor {
                 net.minecraft.core.BlockPos floorPos = new net.minecraft.core.BlockPos(testX, floorTopY, preferredZ);
                 net.minecraft.core.BlockPos abovePos = floorPos.above();
                 
-                // Ensure chunks are loaded
-                if (!level.isLoaded(floorPos) || !level.isLoaded(abovePos)) {
-                    level.getChunk(floorPos);
-                    level.getChunk(abovePos);
-                }
+                // Generate and ensure chunks are fully loaded and post-processed
+                int chunkX = floorPos.getX() >> 4;
+                int chunkZ = floorPos.getZ() >> 4;
+                var chunkAccess = level.getChunkSource().getChunk(chunkX, chunkZ, true);
                 
-                if (level.isLoaded(floorPos) && level.isLoaded(abovePos)) {
+                if (chunkAccess != null && chunkAccess instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk) {
+                    // Ensure chunk is post-processed (safe to call multiple times)
+                    processChunk(level, levelChunk);
+                    
                     var floorState = level.getBlockState(floorPos);
                     var aboveState = level.getBlockState(abovePos);
                     
@@ -756,13 +758,15 @@ public class NetsphereChunkPostProcessor {
                 net.minecraft.core.BlockPos floorPos = new net.minecraft.core.BlockPos(testX, floorTopY, preferredZ);
                 net.minecraft.core.BlockPos abovePos = floorPos.above();
                 
-                // Ensure chunks are loaded
-                if (!level.isLoaded(floorPos) || !level.isLoaded(abovePos)) {
-                    level.getChunk(floorPos);
-                    level.getChunk(abovePos);
-                }
+                // Generate and ensure chunks are fully loaded and post-processed
+                int chunkX = floorPos.getX() >> 4;
+                int chunkZ = floorPos.getZ() >> 4;
+                var chunkAccess = level.getChunkSource().getChunk(chunkX, chunkZ, true);
                 
-                if (level.isLoaded(floorPos) && level.isLoaded(abovePos)) {
+                if (chunkAccess != null && chunkAccess instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk) {
+                    // Ensure chunk is post-processed (safe to call multiple times)
+                    processChunk(level, levelChunk);
+                    
                     var floorState = level.getBlockState(floorPos);
                     var aboveState = level.getBlockState(abovePos);
                     
