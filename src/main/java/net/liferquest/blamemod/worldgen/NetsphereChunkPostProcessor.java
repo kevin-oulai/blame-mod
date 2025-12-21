@@ -37,23 +37,32 @@ public class NetsphereChunkPostProcessor {
     private static final long LADDER_SALT = 0x1ADD31L;
     private static final int LADDER_HEIGHT = 10; // (not used explicitly; ladder length is based on next floor)
 
-    // Ramp generation constants
-    private static final double RAMP_PROBABILITY = 0.08; // probability per floor per chunk
-    private static final long RAMP_SALT = 0x12A3445L;
-    private static final int RAMP_WIDTH = 7; // width in Z direction
-    private static final int RAMP_DEPTH = 6; // depth into wall in X direction (near canyon, shallow)
-    private static final int RAMP_HEADROOM = 3; // blocks of air above stairs for player clearance
+    // Vertical shaft generation constants (alternative to ladders)
+    private static final double SHAFT_PROBABILITY = 0.015; // probability per floor per chunk
+    private static final long SHAFT_SALT = 0x5A1F7L;
+    private static final int SHAFT_WIDTH = 3; // 3x3 shaft
+    private static final int SHAFT_DEPTH = 8; // depth into wall from canyon edge
 
     // -------------------------
-    // Facade carving (deeper)
+    // Facade carving (increased frequency)
     // -------------------------
-    private static final int FACADE_BAND_THICKNESS = 3; // how close to canyon wall (inside wall)
-    private static final int FACADE_DEPTH = 7;          // max carving depth into wall
-    private static final int FACADE_Z_SPACING = 10;     // repeat along the wall (Z)
-    private static final int FACADE_Y_SPACING = 12;     // repeat vertically (Y)
+    private static final int FACADE_BAND_THICKNESS = 5; // increased from 3 - wider band
+    private static final int FACADE_DEPTH = 12;          // increased from 7 - deeper carving
+    private static final int FACADE_Z_SPACING = 6;       // decreased from 10 - more frequent
+    private static final int FACADE_Y_SPACING = 8;       // decreased from 12 - more frequent vertically
     private static final int ARCH_WIDTH = 6;
     private static final int ARCH_HEIGHT = 7;
     private static final long FACADE_NOISE_SALT = 0xFACAD3L;
+
+    // Corridor generation constants
+    private static final double CORRIDOR_PROBABILITY = 0.25; // chance a facade leads to a corridor
+    private static final long CORRIDOR_SALT = 0xC0C1D0C1L;
+    private static final int CORRIDOR_MIN_LENGTH = 8;
+    private static final int CORRIDOR_MAX_LENGTH = 24;
+    private static final int CORRIDOR_WIDTH = 3;
+    private static final int CORRIDOR_HEIGHT = 4;
+    private static final double CORRIDOR_BRANCH_PROBABILITY = 0.15; // chance to branch at each step
+    private static final int CORRIDOR_MAX_BRANCHES = 3; // max branches per corridor
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -133,83 +142,38 @@ public class NetsphereChunkPostProcessor {
                     boolean isFloorLayer = modFloor(y, FLOOR_SPACING) < floorThickness;
 
                     // -------------------------
-                    // RAMP (connects to floor above with proper headroom)
+                    // VERTICAL SHAFT (alternative to ladders for floor-to-floor travel)
                     // -------------------------
                     if (!isInCanyon) {
                         int floorTopY = floorIndex * FLOOR_SPACING + floorThickness;
-
-                        // Calculate next floor info for ramp connection
                         int nextFloorIndex = floorIndex + 1;
-                        int nextFloorType = getFloorType(level.getSeed(), nextFloorIndex);
-                        int nextFloorThickness;
-                        if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
-                            nextFloorThickness = 1;
-                        } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
-                            nextFloorThickness = 2 + (hash01(level.getSeed() ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-                        } else {
-                            nextFloorThickness = 1;
-                        }
                         int nextFloorBaseY = nextFloorIndex * FLOOR_SPACING;
-                        int nextFloorTopY = nextFloorBaseY + nextFloorThickness;
 
-                        RampInfo rampInfo = getRampInfo(
+                        ShaftInfo shaftInfo = getShaftInfo(
                                 level.getSeed(),
                                 chunkX, chunkZ,
                                 floorIndex,
                                 worldX, worldZ,
-                                centerX,
-                                floorTopY,
-                                nextFloorBaseY
+                                centerX
                         );
 
-                        if (rampInfo != null) {
-                            net.minecraft.core.Direction stairFacing = (worldX < centerX)
-                                    ? net.minecraft.core.Direction.EAST
-                                    : net.minecraft.core.Direction.WEST;
-
-                            // Place stair block at ramp Y
-                            if (y == rampInfo.rampY) {
-                                chunk.setBlockState(
-                                        pos,
-                                        Blocks.STONE_BRICK_STAIRS.defaultBlockState()
-                                                .setValue(net.minecraft.world.level.block.StairBlock.FACING, stairFacing),
-                                        false
-                                );
-                            }
-                            // Headroom above the stair (3 blocks for player clearance)
-                            else if (y > rampInfo.rampY && y <= rampInfo.rampY + RAMP_HEADROOM) {
+                        if (shaftInfo != null) {
+                        // Check if this position is within the shaft
+                        int localX = worldX - shaftInfo.shaftX;
+                        int localZ = worldZ - shaftInfo.shaftZ;
+                        
+                        if (Math.abs(localX) <= SHAFT_WIDTH / 2 && Math.abs(localZ) <= SHAFT_WIDTH / 2) {
+                            // Inside shaft: carve vertical passage
+                            if (y >= floorTopY && y < nextFloorBaseY) {
+                                // Carve the shaft (3x3 air passage)
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                            }
-                            // Landing at top of ramp (connects to next floor)
-                            else if (rampInfo.isAtTop && y >= nextFloorBaseY && y < nextFloorTopY) {
-                                // Place landing floor blocks
-                                if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
-                                    chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
-                                } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
-                                    int layerInFloor = y - nextFloorBaseY;
-                                    if (layerInFloor == nextFloorThickness - 1) {
-                                        chunk.setBlockState(pos, Blocks.POLISHED_ANDESITE_SLAB.defaultBlockState(), false);
-                                    } else {
-                                        chunk.setBlockState(pos, Blocks.POLISHED_ANDESITE.defaultBlockState(), false);
-                                    }
-                                } else {
-                                    chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
-                                }
-                            }
-                            // Headroom above landing
-                            else if (rampInfo.isAtTop && y >= nextFloorTopY && y <= nextFloorTopY + RAMP_HEADROOM) {
-                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                            }
-                            // Solid support under the ramp
-                            else if (y < rampInfo.rampY) {
-                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
-                            }
-                            // Above headroom stays solid
-                            else {
-                                chunk.setBlockState(pos, Blocks.WHITE_CONCRETE.defaultBlockState(), false);
+                            } else if (y == floorTopY - 1 || y == nextFloorBaseY) {
+                                // Place platform at floor levels
+                                chunk.setBlockState(pos, Blocks.IRON_BARS.defaultBlockState(), false);
                             }
                             continue;
                         }
+                    }
                     }
 
                     // Erosion / placement rules
@@ -278,28 +242,56 @@ public class NetsphereChunkPostProcessor {
                             }
                         } else {
                             // -------------------------
-                            // Facade carving (deeper cavities)
+                            // Facade carving (increased frequency + corridors)
                             // -------------------------
+                            int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+                            
                             if (isInFacadeBand(worldX, centerX)) {
                                 int localZ = Math.floorMod(worldZ, FACADE_Z_SPACING) - (FACADE_Z_SPACING / 2);
                                 int localY = Math.floorMod(y, FACADE_Y_SPACING);
 
-                                int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
-
                                 if (localY < ARCH_HEIGHT && Math.abs(localZ) <= (ARCH_WIDTH / 2)) {
                                     double n = valueNoise2D(level.getSeed() ^ FACADE_NOISE_SALT, worldZ, y, 32);
 
+                                    // Lower thresholds for more frequent carving
                                     boolean allowFacade = switch (floorType) {
-                                        case FLOOR_TYPE_INDUSTRIAL -> n > 0.5;
-                                        case FLOOR_TYPE_BROKEN -> n > 0.75;
-                                        default -> n > 0.4;
+                                        case FLOOR_TYPE_INDUSTRIAL -> n > 0.3;  // was 0.5
+                                        case FLOOR_TYPE_BROKEN -> n > 0.5;     // was 0.75
+                                        default -> n > 0.2;                    // was 0.4
                                     };
 
                                     if (allowFacade && isInsideArch(localZ, localY)) {
                                         if (distIntoWall >= 0 && distIntoWall < FACADE_DEPTH) {
                                             chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                            
+                                            // Check if this facade should lead to a corridor
+                                            if (distIntoWall == FACADE_DEPTH - 1 && localY >= ARCH_HEIGHT / 2 - 1 && localY <= ARCH_HEIGHT / 2 + 1) {
+                                                // At the back of the facade, check for corridor
+                                                if (isCorridorEntry(level.getSeed(), worldX, worldZ, y)) {
+                                                    // This will be handled by corridor generation
+                                                    // For now, just ensure it's carved
+                                                }
+                                            }
                                             continue;
                                         }
+                                    }
+                                }
+                            }
+                            
+                            // Corridor generation (intricate networks)
+                            if (distIntoWall >= FACADE_DEPTH && distIntoWall < FACADE_DEPTH + CORRIDOR_MAX_LENGTH) {
+                                CorridorInfo corridorInfo = getCorridorInfo(
+                                        level.getSeed(),
+                                        worldX, worldZ, y,
+                                        centerX, floorIndex
+                                );
+                                
+                                if (corridorInfo != null && isInCorridor(worldX, worldZ, y, corridorInfo)) {
+                                    // Carve corridor space
+                                    int corridorLocalY = y - corridorInfo.baseY;
+                                    if (corridorLocalY >= 0 && corridorLocalY < CORRIDOR_HEIGHT) {
+                                        chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                        continue;
                                     }
                                 }
                             }
@@ -402,74 +394,201 @@ public class NetsphereChunkPostProcessor {
         return (int) ((h & 0x7FFFFFFFL) % 3);
     }
 
-    // Helper class to hold ramp information
-    private static class RampInfo {
-        final int rampY;
-        final boolean isAtTop;
+    // Helper class to hold vertical shaft information
+    private static class ShaftInfo {
+        final int shaftX;
+        final int shaftZ;
 
-        RampInfo(int rampY, boolean isAtTop) {
-            this.rampY = rampY;
-            this.isAtTop = isAtTop;
+        ShaftInfo(int shaftX, int shaftZ) {
+            this.shaftX = shaftX;
+            this.shaftZ = shaftZ;
         }
     }
 
-    // Ramp Z center per floor+chunk, or Integer.MIN_VALUE if no ramp this floor in this chunk.
-    private static int rampZCenterFor(long seed, int chunkBlockX, int chunkBlockZ, int floorIndex) {
-        int cx = chunkBlockX >> 4;
-        int cz = chunkBlockZ >> 4;
-
-        long h = seed ^ RAMP_SALT ^ (long) floorIndex * 1315423911L ^ cx * 73428767L ^ cz * 912367L;
-
-        if ((h & 0xFF) >= (int) (RAMP_PROBABILITY * 256)) return Integer.MIN_VALUE;
-
-        int zOffset = (int) ((h >>> 8) & 15); // 0..15
-        return (cz << 4) + zOffset;
-    }
-
-    // Returns RampInfo for ramp at (worldX, worldZ), or null if not part of ramp.
-    // The ramp rises from floorTopY to nextFloorBaseY over RAMP_DEPTH blocks.
-    private static RampInfo getRampInfo(
+    // Returns ShaftInfo for vertical shaft, or null if no shaft at this location
+    private static ShaftInfo getShaftInfo(
             long seed,
             int chunkBlockX, int chunkBlockZ,
             int floorIndex,
             int worldX, int worldZ,
-            int centerX,
-            int floorTopY,
-            int nextFloorBaseY
+            int centerX
     ) {
-        int rampZCenter = rampZCenterFor(seed, chunkBlockX, chunkBlockZ, floorIndex);
-        if (rampZCenter == Integer.MIN_VALUE) return null;
+        int cx = chunkBlockX >> 4;
+        int cz = chunkBlockZ >> 4;
+
+        long h = seed ^ SHAFT_SALT ^ (long) floorIndex * 1315423911L ^ cx * 73428767L ^ cz * 912367L;
+
+        if ((h & 0xFF) >= (int) (SHAFT_PROBABILITY * 256)) return null;
+
+        // Determine shaft position
+        int xOffset = (int) ((h >>> 8) & 15); // 0..15
+        int zOffset = (int) ((h >>> 12) & 15); // 0..15
+        
+        int shaftX = (cx << 4) + xOffset;
+        int shaftZ = (cz << 4) + zOffset;
 
         // Must be in wall (not inside canyon)
-        int distFromCenter = Math.abs(worldX - centerX);
+        int distFromCenter = Math.abs(shaftX - centerX);
         if (distFromCenter < CANYON_HALF_WIDTH) return null;
 
-        // Depth into wall near canyon
+        // Depth into wall
         int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
-        if (distIntoWall < 0 || distIntoWall >= RAMP_DEPTH) return null;
+        if (distIntoWall < 0 || distIntoWall >= SHAFT_DEPTH) return null;
 
-        // Z band
-        int distZ = Math.abs(worldZ - rampZCenter);
-        if (distZ > (RAMP_WIDTH / 2)) return null;
-
-        // Calculate ramp height: rises from floorTopY to nextFloorBaseY over RAMP_DEPTH
-        int heightDifference = nextFloorBaseY - floorTopY;
-        // Interpolate height based on distance into wall
-        // distIntoWall ranges from 0 to RAMP_DEPTH-1
-        // At distIntoWall=0: rampY = floorTopY
-        // At distIntoWall=RAMP_DEPTH-1: rampY = nextFloorBaseY - 1 (one block below next floor)
-        int rampY;
-        if (RAMP_DEPTH == 1) {
-            // Edge case: single step ramp
-            rampY = floorTopY;
-        } else {
-            rampY = floorTopY + (int) Math.round((heightDifference - 1) * (distIntoWall / (double) (RAMP_DEPTH - 1)));
+        // Check if this position is within the shaft area
+        int localX = worldX - shaftX;
+        int localZ = worldZ - shaftZ;
+        if (Math.abs(localX) <= SHAFT_WIDTH / 2 && Math.abs(localZ) <= SHAFT_WIDTH / 2) {
+            return new ShaftInfo(shaftX, shaftZ);
         }
-        
-        // Check if we're at the top of the ramp (last step before landing)
-        boolean isAtTop = (distIntoWall == RAMP_DEPTH - 1);
 
-        return new RampInfo(rampY, isAtTop);
+        return null;
+    }
+
+    // Helper class to hold corridor information
+    private static class CorridorInfo {
+        final int startX, startZ, startY;
+        final int baseY;
+        final int length;
+        final int direction; // 0=X+, 1=X-, 2=Z+, 3=Z-
+        final int[] branches; // branch points and directions
+
+        CorridorInfo(int startX, int startZ, int startY, int baseY, int length, int direction, int[] branches) {
+            this.startX = startX;
+            this.startZ = startZ;
+            this.startY = startY;
+            this.baseY = baseY;
+            this.length = length;
+            this.direction = direction;
+            this.branches = branches;
+        }
+    }
+
+    // Check if a facade entry should lead to a corridor
+    private static boolean isCorridorEntry(long seed, int worldX, int worldZ, int y) {
+        double prob = hash01(seed ^ CORRIDOR_SALT, worldX, worldZ ^ y);
+        return prob < CORRIDOR_PROBABILITY;
+    }
+
+    // Get corridor information for a given position
+    private static CorridorInfo getCorridorInfo(
+            long seed,
+            int worldX, int worldZ, int y,
+            int centerX, int floorIndex
+    ) {
+        // Find the facade entry point (at FACADE_DEPTH - 1)
+        int distFromCenter = Math.abs(worldX - centerX);
+        int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
+        
+        if (distIntoWall < FACADE_DEPTH) return null;
+
+        // Check if we're near a potential corridor start
+        int facadeEntryX = (worldX < centerX) ? centerX - CANYON_HALF_WIDTH - FACADE_DEPTH + 1 
+                                               : centerX + CANYON_HALF_WIDTH + FACADE_DEPTH - 1;
+        
+        // Align to grid for deterministic corridor placement
+        int gridX = floorDiv(worldX, FACADE_Z_SPACING) * FACADE_Z_SPACING;
+        int gridZ = floorDiv(worldZ, FACADE_Z_SPACING) * FACADE_Z_SPACING;
+        int gridY = floorDiv(y, FACADE_Y_SPACING) * FACADE_Y_SPACING;
+
+        // Check if this is a corridor entry point
+        if (Math.abs(worldX - facadeEntryX) <= 2 && 
+            Math.abs(worldZ - gridZ) <= 2 &&
+            Math.abs(y - gridY - FACADE_Y_SPACING / 2) <= 2) {
+            
+            // Generate corridor parameters deterministically
+            long corridorSeed = seed ^ CORRIDOR_SALT ^ (long) gridX * 0x9E3779B97F4A7C15L 
+                                ^ (long) gridZ * 0xC13FA9A902A6328FL ^ (long) gridY * 0x5EED1E5FL;
+            
+            int length = CORRIDOR_MIN_LENGTH + (int) ((hash01(corridorSeed, 0, 0) * (CORRIDOR_MAX_LENGTH - CORRIDOR_MIN_LENGTH)));
+            int direction = (int) (hash01(corridorSeed, 1, 0) * 4); // 0-3
+            
+            // Generate branches
+            int[] branches = new int[CORRIDOR_MAX_BRANCHES * 2]; // [position, direction] pairs
+            int branchCount = 0;
+            for (int i = 2; i < length - 2 && branchCount < CORRIDOR_MAX_BRANCHES; i++) {
+                if (hash01(corridorSeed, i, 0) < CORRIDOR_BRANCH_PROBABILITY) {
+                    branches[branchCount * 2] = i;
+                    branches[branchCount * 2 + 1] = (int) (hash01(corridorSeed, i, 1) * 4);
+                    branchCount++;
+                }
+            }
+            
+            return new CorridorInfo(facadeEntryX, gridZ, gridY + FACADE_Y_SPACING / 2, 
+                                    gridY + FACADE_Y_SPACING / 2, length, direction, branches);
+        }
+
+        return null;
+    }
+
+    // Check if a position is inside a corridor
+    private static boolean isInCorridor(int worldX, int worldZ, int y, CorridorInfo corridor) {
+        // Check main corridor
+        int dx = worldX - corridor.startX;
+        int dz = worldZ - corridor.startZ;
+        int dy = y - corridor.baseY;
+        
+        if (dy < 0 || dy >= CORRIDOR_HEIGHT) return false;
+
+        boolean inMain = false;
+        switch (corridor.direction) {
+            case 0: // X+
+                inMain = (dx >= 0 && dx < corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH / 2);
+                break;
+            case 1: // X-
+                inMain = (dx <= 0 && dx > -corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH / 2);
+                break;
+            case 2: // Z+
+                inMain = (dz >= 0 && dz < corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH / 2);
+                break;
+            case 3: // Z-
+                inMain = (dz <= 0 && dz > -corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH / 2);
+                break;
+        }
+
+        if (inMain) return true;
+
+        // Check branches
+        for (int i = 0; i < corridor.branches.length; i += 2) {
+            if (corridor.branches[i] == 0) break; // End of branches
+            
+            int branchPos = corridor.branches[i];
+            int branchDir = corridor.branches[i + 1];
+            
+            int branchX = corridor.startX;
+            int branchZ = corridor.startZ;
+            
+            // Calculate branch start position based on main corridor direction
+            switch (corridor.direction) {
+                case 0: branchX += branchPos; break;
+                case 1: branchX -= branchPos; break;
+                case 2: branchZ += branchPos; break;
+                case 3: branchZ -= branchPos; break;
+            }
+            
+            int bdx = worldX - branchX;
+            int bdz = worldZ - branchZ;
+            
+            boolean inBranch = false;
+            switch (branchDir) {
+                case 0: // X+
+                    inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH / 2);
+                    break;
+                case 1: // X-
+                    inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH / 2);
+                    break;
+                case 2: // Z+
+                    inBranch = (bdz >= 0 && bdz < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH / 2);
+                    break;
+                case 3: // Z-
+                    inBranch = (bdz <= 0 && bdz > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH / 2);
+                    break;
+            }
+            
+            if (inBranch) return true;
+        }
+
+        return false;
     }
 
     // Returns true if position is in the facade carving band (just inside canyon wall)
