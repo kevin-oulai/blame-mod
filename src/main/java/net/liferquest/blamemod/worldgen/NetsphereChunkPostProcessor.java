@@ -478,23 +478,42 @@ public class NetsphereChunkPostProcessor {
                                     if (y >= baseY && y < baseY + CORRIDOR_HEIGHT) {
                                         int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
                                         
-                                        // Main corridor: carve if depthFromFace is within [depth, depth+CORRIDOR_WIDTH)
-                                        if (depthFromFace >= depth && depthFromFace < depth + CORRIDOR_WIDTH) {
-                                            chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                            continue;
-                                        }
+                                        boolean inMainCorridor = depthFromFace >= depth && depthFromFace < depth + CORRIDOR_WIDTH;
                                         
                                         // Perpendicular connector tunnels (access tunnels from facade to corridor)
                                         // Generate every 12 blocks along Z, width 2 blocks
                                         int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
                                         int distFromConnectorZ = Math.abs(worldZ - connectorZ);
-                                        if (distFromConnectorZ < 2) { // Width 2: within ±1 of connector Z
-                                            // Connector spans from depthFromFace = 0 to corridorDepth
-                                            // Same height as corridor
-                                            if (depthFromFace >= 0 && depthFromFace <= depth) {
+                                        boolean inConnector = distFromConnectorZ < 2 && depthFromFace >= 0 && depthFromFace <= depth;
+                                        
+                                        // Check if connector meets main corridor (door frame location)
+                                        boolean atConnectorJunction = inConnector && depthFromFace == depth;
+                                        
+                                        if (inMainCorridor || inConnector) {
+                                            // Door frame blocks where connector meets main corridor (check first to override)
+                                            if (atConnectorJunction && (y == baseY || y == baseY + CORRIDOR_HEIGHT - 1)) {
+                                                chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                                            } else if (y == baseY) {
+                                                // Floor: place POLISHED_DEEPSLATE tiles occasionally
+                                                double tileChance = hash01(level.getSeed() ^ CORRIDOR_SALT ^ 0xF1000L, worldX, worldZ);
+                                                if (tileChance < 0.3) { // 30% chance
+                                                    chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                                                } else {
+                                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                                }
+                                            } else if (y == baseY + CORRIDOR_HEIGHT - 1) {
+                                                // Ceiling: place SEA_LANTERN every 8 blocks (deterministic pattern)
+                                                if ((worldZ & 7) == 0) { // Every 8 blocks
+                                                    chunk.setBlockState(pos, Blocks.SEA_LANTERN.defaultBlockState(), false);
+                                                } else {
+                                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                                }
+                                            } else {
+                                                // Middle layers: just air
                                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                                continue;
                                             }
+                                            
+                                            continue;
                                         }
                                     }
                                 }
