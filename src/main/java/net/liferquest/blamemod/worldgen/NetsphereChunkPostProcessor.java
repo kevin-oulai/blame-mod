@@ -478,10 +478,23 @@ public class NetsphereChunkPostProcessor {
                                     if (y >= baseY && y < baseY + CORRIDOR_HEIGHT) {
                                         int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
                                         
-                                        // Carve corridor if depthFromFace is within [depth, depth+CORRIDOR_WIDTH)
+                                        // Main corridor: carve if depthFromFace is within [depth, depth+CORRIDOR_WIDTH)
                                         if (depthFromFace >= depth && depthFromFace < depth + CORRIDOR_WIDTH) {
                                             chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                                             continue;
+                                        }
+                                        
+                                        // Perpendicular connector tunnels (access tunnels from facade to corridor)
+                                        // Generate every 12 blocks along Z, width 2 blocks
+                                        int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
+                                        int distFromConnectorZ = Math.abs(worldZ - connectorZ);
+                                        if (distFromConnectorZ < 2) { // Width 2: within ±1 of connector Z
+                                            // Connector spans from depthFromFace = 0 to corridorDepth
+                                            // Same height as corridor
+                                            if (depthFromFace >= 0 && depthFromFace <= depth) {
+                                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                                continue;
+                                            }
                                         }
                                     }
                                 }
