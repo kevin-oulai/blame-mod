@@ -79,14 +79,16 @@ public class NetsphereChunkPostProcessor {
     // Corridor generation constants (new system)
     private static final int CORRIDOR_SEGMENT = 128; // Z segment size for corridor placement
     private static final double CORRIDOR_PROB = 0.08; // probability for corridor sites
-    private static final int CORRIDOR_MIN_LENGTH = 64; // minimum corridor length in Z direction
-    private static final int CORRIDOR_MAX_LENGTH = 128; // maximum corridor length in Z direction
+    private static final int CORRIDOR_MIN_LENGTH = 64; // minimum corridor length
+    private static final int CORRIDOR_MAX_LENGTH = 128; // maximum corridor length
+    private static final double CORRIDOR_TURN_PROB = 0.15; // probability of turning left/right
+    private static final int CORRIDOR_TURN_SEGMENT = 32; // segment size for turn checks
     private static final int CORRIDOR_MIN_DEPTH = 4; // minimum depth from canyon face
     private static final int CORRIDOR_MAX_DEPTH = 80; // maximum depth from canyon face (extended deep)
     private static final int CORRIDOR_MIN_WIDTH = 2; // minimum corridor width
     private static final int CORRIDOR_MAX_WIDTH = 5; // maximum corridor width
-    private static final int CORRIDOR_MIN_HEIGHT = 3; // minimum corridor height
-    private static final int CORRIDOR_MAX_HEIGHT = 5; // maximum corridor height
+    private static final int CORRIDOR_MIN_HEIGHT = 2; // minimum corridor height
+    private static final int CORRIDOR_MAX_HEIGHT = 16; // maximum corridor height
     private static final double CORRIDOR_BRANCH_PROB = 0.25; // probability of branching at each segment
     private static final int CORRIDOR_MAX_BRANCHES = 16; // max branches per corridor
     private static final int CORRIDOR_BRANCH_SEGMENT = 16; // segment size for branch checks
@@ -488,40 +490,61 @@ public class NetsphereChunkPostProcessor {
                                     int corridorBaseSegZ = corridorSegZ * CORRIDOR_SEGMENT;
                                     int actualLocalZ = worldZ - corridorBaseSegZ;
                                     
-                                    // Get corridor length and check if we're within it
+                                    // Get corridor parameters
                                     int corridorLen = corridorLength(level.getSeed(), floorIndex, corridorSegZ);
-                                    if (actualLocalZ >= corridorLen) {
+                                    int startOffset = corridorStartOffset(level.getSeed(), floorIndex, corridorSegZ);
+                                    int direction = corridorDirection(level.getSeed(), floorIndex, corridorSegZ);
+                                    
+                                    // Check if we're within the corridor's actual length range (accounting for start offset)
+                                    int relativePos = actualLocalZ - startOffset;
+                                    if (relativePos < 0 || relativePos >= corridorLen) {
                                         // Outside corridor length range, skip
                                         continue;
                                     }
                                     
                                     // Get variable width and height
-                                    int width = corridorWidth(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
-                                    int height = corridorHeight(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                    int width = corridorWidth(level.getSeed(), floorIndex, corridorSegZ, relativePos);
+                                    int height = corridorHeight(level.getSeed(), floorIndex, corridorSegZ, relativePos);
                                     
                                     // Get stairs Y offset
-                                    int stairsYOffset = corridorStairsYOffset(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                    int stairsYOffset = corridorStairsYOffset(level.getSeed(), floorIndex, corridorSegZ, relativePos);
                                     int currentBaseY = baseY + stairsYOffset;
                                     
                                     // Check if y is in the corridor height range (with stairs offset)
                                     if (y >= currentBaseY && y < currentBaseY + height) {
                                         int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
                                         
-                                        // Main corridor at variable depth with variable width
-                                        boolean inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width;
+                                        // Determine if we're in the corridor based on direction
+                                        boolean inMainCorridor = false;
+                                        
+                                        if (direction == 0 || direction == 1) {
+                                            // Z-direction corridor (original behavior)
+                                            inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width;
+                                        } else {
+                                            // X-direction corridor (left/right)
+                                            // For X-direction, the corridor runs along X axis at a fixed Z
+                                            // Check if we're at the right Z position (within width/2 of the corridor center Z)
+                                            int corridorCenterZ = corridorBaseSegZ + startOffset + (corridorLen / 2);
+                                            int distFromCorridorZ = Math.abs(worldZ - corridorCenterZ);
+                                            // For X-direction, we check depth and width in Z direction
+                                            inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width && distFromCorridorZ < (corridorLen / 2);
+                                        }
                                         
                                         // Check for branches (extend corridors deeper at branch points)
-                                        boolean hasBranch = hasCorridorBranch(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
-                                        if (hasBranch && depthFromFace >= depth + width && depthFromFace < depth + width + 8) {
-                                            // Branch extends 8 blocks deeper
+                                        boolean hasBranch = hasCorridorBranch(level.getSeed(), floorIndex, corridorSegZ, relativePos);
+                                        if (hasBranch && depthFromFace >= depth + width && depthFromFace < depth + width + 8 && (direction == 0 || direction == 1)) {
+                                            // Branch extends 8 blocks deeper (only for Z-direction corridors)
                                             inMainCorridor = true;
                                         }
                                         
                                         // Perpendicular connector tunnels (access tunnels from facade to corridor)
-                                        // Generate every 12 blocks along Z, width 2 blocks
-                                        int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
-                                        int distFromConnectorZ = Math.abs(worldZ - connectorZ);
-                                        boolean inConnector = distFromConnectorZ < 2 && depthFromFace >= 0 && depthFromFace <= depth;
+                                        // Generate every 12 blocks along Z, width 2 blocks (only for Z-direction corridors)
+                                        boolean inConnector = false;
+                                        if (direction == 0 || direction == 1) {
+                                            int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
+                                            int distFromConnectorZ = Math.abs(worldZ - connectorZ);
+                                            inConnector = distFromConnectorZ < 2 && depthFromFace >= 0 && depthFromFace <= depth;
+                                        }
                                         
                                         // Check if connector meets main corridor (door frame location)
                                         boolean atConnectorJunction = inConnector && depthFromFace == depth;
@@ -830,6 +853,36 @@ public class NetsphereChunkPostProcessor {
         // Clamp to ensure int-cast safety
         if (length > CORRIDOR_MAX_LENGTH) length = CORRIDOR_MAX_LENGTH;
         return length;
+    }
+
+    // Returns deterministic start offset for a corridor within its segment
+    // This allows corridors to start at different positions, not always at segment start
+    private static int corridorStartOffset(long seed, int floorIndex, int segZ) {
+        int maxOffset = Math.max(0, CORRIDOR_SEGMENT - CORRIDOR_MIN_LENGTH);
+        double offsetFrac = hash01(seed ^ CORRIDOR_SALT ^ 0x5744070L, floorIndex, segZ);
+        int offset = (int) (offsetFrac * (maxOffset + 1));
+        if (offset > maxOffset) offset = maxOffset;
+        return offset;
+    }
+
+    // Returns corridor direction: 0=Z+, 1=Z-, 2=X+ (right), 3=X- (left)
+    private static int corridorDirection(long seed, int floorIndex, int segZ) {
+        double dirFrac = hash01(seed ^ CORRIDOR_SALT ^ 0x013C700L, floorIndex, segZ);
+        return (int) (dirFrac * 4);
+    }
+
+    // Returns turn direction at a position: -1=left, 0=straight, 1=right
+    // currentDir: 0=Z+, 1=Z-, 2=X+, 3=X-
+    private static int corridorTurn(long seed, int floorIndex, int segZ, int localPos) {
+        int turnSeg = localPos / CORRIDOR_TURN_SEGMENT;
+        long turnSeed = seed ^ CORRIDOR_SALT ^ 0x7470000L ^ ((long) floorIndex * 0x9E3779B97F4A7C15L) ^ ((long) turnSeg * 0xC13FA9A902A6328FL);
+        double turnFrac = hash01(turnSeed, segZ, turnSeg);
+        if (turnFrac < CORRIDOR_TURN_PROB) {
+            return -1; // Turn left
+        } else if (turnFrac < CORRIDOR_TURN_PROB * 2) {
+            return 1; // Turn right
+        }
+        return 0; // Straight
     }
 
     // Helper class to hold vertical shaft information
