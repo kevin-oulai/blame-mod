@@ -58,8 +58,8 @@ public class NetsphereChunkPostProcessor {
     // Corridor generation constants (old system - kept for backward compatibility)
     private static final double CORRIDOR_PROBABILITY = 0.7; // chance a facade leads to a corridor
     private static final long CORRIDOR_SALT_OLD = 0xC0C1D0C1L;
-    private static final int CORRIDOR_MIN_LENGTH = 8;
-    private static final int CORRIDOR_MAX_LENGTH = 24;
+    private static final int CORRIDOR_MIN_LENGTH_OLD = 8;
+    private static final int CORRIDOR_MAX_LENGTH_OLD = 24;
     private static final int CORRIDOR_WIDTH_OLD = 3;
     private static final int CORRIDOR_HEIGHT_OLD = 4;
     private static final double CORRIDOR_BRANCH_PROBABILITY = 0.15; // chance to branch at each step
@@ -79,6 +79,8 @@ public class NetsphereChunkPostProcessor {
     // Corridor generation constants (new system)
     private static final int CORRIDOR_SEGMENT = 128; // Z segment size for corridor placement
     private static final double CORRIDOR_PROB = 0.08; // probability for corridor sites
+    private static final int CORRIDOR_MIN_LENGTH = 64; // minimum corridor length in Z direction
+    private static final int CORRIDOR_MAX_LENGTH = 128; // maximum corridor length in Z direction
     private static final int CORRIDOR_MIN_DEPTH = 4; // minimum depth from canyon face
     private static final int CORRIDOR_MAX_DEPTH = 80; // maximum depth from canyon face (extended deep)
     private static final int CORRIDOR_MIN_WIDTH = 2; // minimum corridor width
@@ -86,11 +88,11 @@ public class NetsphereChunkPostProcessor {
     private static final int CORRIDOR_MIN_HEIGHT = 3; // minimum corridor height
     private static final int CORRIDOR_MAX_HEIGHT = 5; // maximum corridor height
     private static final double CORRIDOR_BRANCH_PROB = 0.25; // probability of branching at each segment
-    private static final int CORRIDOR_MAX_BRANCHES = 8; // max branches per corridor
+    private static final int CORRIDOR_MAX_BRANCHES = 16; // max branches per corridor
     private static final int CORRIDOR_BRANCH_SEGMENT = 16; // segment size for branch checks
-    private static final double CORRIDOR_LIGHT_BROKEN_PROB = 0.3; // probability of broken lights
+    private static final double CORRIDOR_LIGHT_BROKEN_PROB = 0.7; // probability of broken lights
     private static final int CORRIDOR_STAIRS_SEGMENT = 12; // segment size for stairs
-    private static final double CORRIDOR_STAIRS_PROB = 0.15; // probability of stairs up/down
+    private static final double CORRIDOR_STAIRS_PROB = 0.25; // probability of stairs up/down
     private static final long CORRIDOR_SALT = 0xC0C1D0C1L; // salt for corridor generation
 
     @SubscribeEvent
@@ -483,9 +485,15 @@ public class NetsphereChunkPostProcessor {
                                     int depth = corridorDepth(level.getSeed(), floorIndex, corridorSegZ);
                                     
                                     // Calculate local Z within segment for variations
-                                    int localZ = Math.floorMod(worldZ, CORRIDOR_SEGMENT);
                                     int corridorBaseSegZ = corridorSegZ * CORRIDOR_SEGMENT;
                                     int actualLocalZ = worldZ - corridorBaseSegZ;
+                                    
+                                    // Get corridor length and check if we're within it
+                                    int corridorLen = corridorLength(level.getSeed(), floorIndex, corridorSegZ);
+                                    if (actualLocalZ >= corridorLen) {
+                                        // Outside corridor length range, skip
+                                        continue;
+                                    }
                                     
                                     // Get variable width and height
                                     int width = corridorWidth(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
@@ -587,7 +595,7 @@ public class NetsphereChunkPostProcessor {
                             }
                             
                             // Corridor generation (intricate networks)
-                            if (distIntoWall >= FACADE_DEPTH && distIntoWall < FACADE_DEPTH + CORRIDOR_MAX_LENGTH) {
+                            if (distIntoWall >= FACADE_DEPTH && distIntoWall < FACADE_DEPTH + CORRIDOR_MAX_LENGTH_OLD) {
                                 CorridorInfo corridorInfo = getCorridorInfo(
                                         level.getSeed(),
                                         worldX, worldZ, y,
@@ -814,6 +822,16 @@ public class NetsphereChunkPostProcessor {
         return branchFrac < CORRIDOR_BRANCH_PROB;
     }
 
+    // Returns deterministic length for a corridor at the given floor and segment
+    private static int corridorLength(long seed, int floorIndex, int segZ) {
+        double lengthFrac = hash01(seed ^ CORRIDOR_SALT ^ 0x1356750L, floorIndex, segZ);
+        int lengthRange = CORRIDOR_MAX_LENGTH - CORRIDOR_MIN_LENGTH + 1;
+        int length = CORRIDOR_MIN_LENGTH + (int) (lengthFrac * lengthRange);
+        // Clamp to ensure int-cast safety
+        if (length > CORRIDOR_MAX_LENGTH) length = CORRIDOR_MAX_LENGTH;
+        return length;
+    }
+
     // Helper class to hold vertical shaft information
     private static class ShaftInfo {
         final int shaftX;
@@ -920,7 +938,7 @@ public class NetsphereChunkPostProcessor {
             long corridorSeed = seed ^ CORRIDOR_SALT ^ (long) gridX * 0x9E3779B97F4A7C15L 
                                 ^ (long) gridZ * 0xC13FA9A902A6328FL ^ (long) gridY * 0x5EED1E5FL;
             
-            int length = CORRIDOR_MIN_LENGTH + (int) ((hash01(corridorSeed, 0, 0) * (CORRIDOR_MAX_LENGTH - CORRIDOR_MIN_LENGTH)));
+            int length = CORRIDOR_MIN_LENGTH_OLD + (int) ((hash01(corridorSeed, 0, 0) * (CORRIDOR_MAX_LENGTH_OLD - CORRIDOR_MIN_LENGTH_OLD)));
             int direction = (int) (hash01(corridorSeed, 1, 0) * 4); // 0-3
             
             // Generate branches
@@ -992,7 +1010,7 @@ public class NetsphereChunkPostProcessor {
             boolean inBranch = false;
             switch (branchDir) {
                 case 0: // X+
-                    inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
+                    inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH_OLD / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 1: // X-
                     inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
