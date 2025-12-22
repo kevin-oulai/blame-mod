@@ -148,4 +148,3 @@ See [LICENSE.txt](LICENSE.txt) for details.
 ## 🙏 Credits
 
 Inspired by Tsutomu Nihei's *BLAME!* manga and the concept of an endless megastructure.
-

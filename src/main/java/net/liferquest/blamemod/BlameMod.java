@@ -1,6 +1,7 @@
 package net.liferquest.blamemod;
 
 import com.mojang.logging.LogUtils;
+import net.liferquest.blamemod.block.ModBlocks;
 import net.liferquest.blamemod.command.CanyonInfoCommand;
 import net.liferquest.blamemod.command.NetsphereCommand;
 import net.liferquest.blamemod.worldgen.ModBiomes;
@@ -39,6 +40,9 @@ public class BlameMod {
 
         // Register custom biomes
         ModBiomes.register(modEventBus);
+        
+        // Register custom blocks
+        ModBlocks.register(modEventBus);
         
         // Note: Dimensions (LevelStems) are registered via JSON data files in data/blamemod/dimension/
         // and data/blamemod/dimension_type/, not through DeferredRegister in 1.21+

@@ -113,7 +113,7 @@ public class NetsphereChunkPostProcessor {
         processChunk(serverLevel, levelChunk);
     }
 
-    private static void processChunk(ServerLevel level, net.minecraft.world.level.chunk.LevelChunk chunk) {
+    public static void processChunk(ServerLevel level, net.minecraft.world.level.chunk.LevelChunk chunk) {
         int minY = level.getMinBuildHeight();
         int maxY = Math.min(level.getMaxBuildHeight(), 256);
 
@@ -335,8 +335,9 @@ public class NetsphereChunkPostProcessor {
 
                     // Erosion / placement rules
                     boolean canErode = hasFloorNoise;
-                    if (floorType == FLOOR_TYPE_BROKEN && floorBlock == Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState()) {
-                        canErode = true;
+                    // Disable erosion/scrambling for broken floors - it messes up other features
+                    if (floorType == FLOOR_TYPE_BROKEN) {
+                        canErode = false;
                     }
 
                     // Check if there's a ladder at this position (needed for floor carving)
@@ -437,16 +438,21 @@ public class NetsphereChunkPostProcessor {
                                 // Carve through floor for ladder
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             } else if (distFromWall <= FLOOR_LEDGE) {
-                                boolean shouldErode = false;
-                                if (distFromWall == FLOOR_LEDGE) {
-                                    double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
-                                    shouldErode = erosionNoise < 0.15;
-                                }
-
-                                if (!shouldErode) {
+                                // No erosion/scrambling for broken floors
+                                if (floorType == FLOOR_TYPE_BROKEN) {
                                     chunk.setBlockState(pos, floorBlock, false);
                                 } else {
-                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                    boolean shouldErode = false;
+                                    if (distFromWall == FLOOR_LEDGE) {
+                                        double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
+                                        shouldErode = erosionNoise < 0.15;
+                                    }
+
+                                    if (!shouldErode) {
+                                        chunk.setBlockState(pos, floorBlock, false);
+                                    } else {
+                                        chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                    }
                                 }
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
