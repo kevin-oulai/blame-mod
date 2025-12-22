@@ -55,13 +55,13 @@ public class NetsphereChunkPostProcessor {
     private static final int ARCH_HEIGHT = 7;
     private static final long FACADE_NOISE_SALT = 0xFACAD3L;
 
-    // Corridor generation constants
+    // Corridor generation constants (old system - kept for backward compatibility)
     private static final double CORRIDOR_PROBABILITY = 0.7; // chance a facade leads to a corridor
-    private static final long CORRIDOR_SALT = 0xC0C1D0C1L;
+    private static final long CORRIDOR_SALT_OLD = 0xC0C1D0C1L;
     private static final int CORRIDOR_MIN_LENGTH = 8;
     private static final int CORRIDOR_MAX_LENGTH = 24;
-    private static final int CORRIDOR_WIDTH = 3;
-    private static final int CORRIDOR_HEIGHT = 4;
+    private static final int CORRIDOR_WIDTH_OLD = 3;
+    private static final int CORRIDOR_HEIGHT_OLD = 4;
     private static final double CORRIDOR_BRANCH_PROBABILITY = 0.15; // chance to branch at each step
     private static final int CORRIDOR_MAX_BRANCHES = 3; // max branches per corridor
 
@@ -75,6 +75,15 @@ public class NetsphereChunkPostProcessor {
     private static final int WALKWAY_THICKNESS = 1; // vertical thickness
     private static final long MEGABRIDGE_SALT = 0xE3A4B01D63L;
     private static final long WALKWAY_SALT = 0x4A1C4A41L;
+
+    // Corridor generation constants (new system)
+    private static final int CORRIDOR_SEGMENT = 128; // Z segment size for corridor placement
+    private static final double CORRIDOR_PROB = 0.08; // probability for corridor sites
+    private static final int CORRIDOR_MIN_DEPTH = 4; // minimum depth from canyon face
+    private static final int CORRIDOR_MAX_DEPTH = 24; // maximum depth from canyon face
+    private static final int CORRIDOR_WIDTH = 3; // corridor width
+    private static final int CORRIDOR_HEIGHT = 4; // corridor height
+    private static final long CORRIDOR_SALT = 0xC0C1D0C1L; // salt for corridor generation
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -645,6 +654,33 @@ public class NetsphereChunkPostProcessor {
     // Returns the X coordinate of the right wall face at the given canyon center
     private static int rightWallXAt(int centerX) {
         return centerX + CANYON_HALF_WIDTH;
+    }
+
+    // Check if a corridor site exists at the given chunk and segment
+    // chunkX and chunkZ are world coordinates (will be converted to chunk coordinates)
+    private static boolean hasCorridorSite(long seed, int chunkX, int chunkZ, int segZ) {
+        int chunkCoordX = chunkX >> 4;
+        double prob = hash01(seed ^ CORRIDOR_SALT, chunkCoordX, segZ);
+        return prob < CORRIDOR_PROB;
+    }
+
+    // Returns deterministic base Y for a corridor at the given floor and segment
+    private static int corridorBaseY(long seed, int floorIndex, int segZ) {
+        int base = floorIndex * FLOOR_SPACING + 2;
+        double offsetFrac = hash01(seed ^ CORRIDOR_SALT ^ 0xBEEFL, floorIndex, segZ);
+        int offset = (int) (offsetFrac * 4); // offset in [0, 3]
+        if (offset >= 4) offset = 3;
+        return base + offset;
+    }
+
+    // Returns deterministic depth for a corridor at the given floor and segment
+    private static int corridorDepth(long seed, int floorIndex, int segZ) {
+        double depthFrac = hash01(seed ^ CORRIDOR_SALT ^ 0xCAFEL, floorIndex, segZ);
+        int depthRange = CORRIDOR_MAX_DEPTH - CORRIDOR_MIN_DEPTH + 1;
+        int depth = CORRIDOR_MIN_DEPTH + (int) (depthFrac * depthRange);
+        // Clamp to ensure int-cast safety
+        if (depth > CORRIDOR_MAX_DEPTH) depth = CORRIDOR_MAX_DEPTH;
+        return depth;
     }
 
     // Helper class to hold vertical shaft information
