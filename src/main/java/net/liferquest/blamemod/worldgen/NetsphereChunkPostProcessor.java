@@ -409,8 +409,8 @@ public class NetsphereChunkPostProcessor {
                         }
                     }
 
-                    if (isFloorLayer && canErode) {
-                        // Check if we're on a bridge or walkway - if so, skip floor scrambling
+                    if (isFloorLayer) {
+                        // Check if we're on a bridge or walkway - if so, skip floor placement
                         boolean onBridge = false;
                         boolean onWalkway = false;
                         
@@ -448,7 +448,7 @@ public class NetsphereChunkPostProcessor {
                         }
                         
                         if (onBridge || onWalkway) {
-                            // Don't apply floor scrambling to bridges/walkways
+                            // Don't apply floor placement to bridges/walkways
                             continue;
                         }
                         
@@ -459,10 +459,11 @@ public class NetsphereChunkPostProcessor {
                                 // Carve through floor for ladder
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                             } else if (distFromWall <= FLOOR_LEDGE) {
-                                // No erosion/scrambling for broken floors
+                                // For broken floors, always place blocks without erosion
                                 if (floorType == FLOOR_TYPE_BROKEN) {
                                     chunk.setBlockState(pos, floorBlock, false);
-                                } else {
+                                } else if (canErode) {
+                                    // For other floors, apply erosion logic
                                     boolean shouldErode = false;
                                     if (distFromWall == FLOOR_LEDGE) {
                                         double erosionNoise = hash01(level.getSeed() ^ 0xE051091L, worldX, worldZ + y);
@@ -474,6 +475,9 @@ public class NetsphereChunkPostProcessor {
                                     } else {
                                         chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                                     }
+                                } else {
+                                    // canErode is false but not broken floor - just place the block
+                                    chunk.setBlockState(pos, floorBlock, false);
                                 }
                             } else {
                                 chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
