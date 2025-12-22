@@ -39,7 +39,7 @@ public class NetsphereChunkPostProcessor {
     private static final int LADDER_HEIGHT = 10; // (not used explicitly; ladder length is based on next floor)
 
     // Vertical shaft generation constants (alternative to ladders)
-    private static final double SHAFT_PROBABILITY = 0.015; // probability per floor per chunk
+    private static final double SHAFT_PROBABILITY = 0.25; // probability per floor per chunk
     private static final long SHAFT_SALT = 0x5A1F7L;
     private static final int SHAFT_WIDTH = 3; // 3x3 shaft
     private static final int SHAFT_DEPTH = 8; // depth into wall from canyon edge
@@ -47,16 +47,16 @@ public class NetsphereChunkPostProcessor {
     // -------------------------
     // Facade carving (increased frequency)
     // -------------------------
-    private static final int FACADE_BAND_THICKNESS = 5; // increased from 3 - wider band
+    private static final int FACADE_BAND_THICKNESS = 4; // increased from 3 - wider band
     private static final int FACADE_DEPTH = 12;          // increased from 7 - deeper carving
-    private static final int FACADE_Z_SPACING = 6;       // decreased from 10 - more frequent
-    private static final int FACADE_Y_SPACING = 8;       // decreased from 12 - more frequent vertically
+    private static final int FACADE_Z_SPACING = 8;       // decreased from 10 - more frequent
+    private static final int FACADE_Y_SPACING = 10;       // decreased from 12 - more frequent vertically
     private static final int ARCH_WIDTH = 6;
     private static final int ARCH_HEIGHT = 7;
     private static final long FACADE_NOISE_SALT = 0xFACAD3L;
 
     // Corridor generation constants
-    private static final double CORRIDOR_PROBABILITY = 0.25; // chance a facade leads to a corridor
+    private static final double CORRIDOR_PROBABILITY = 0.7; // chance a facade leads to a corridor
     private static final long CORRIDOR_SALT = 0xC0C1D0C1L;
     private static final int CORRIDOR_MIN_LENGTH = 8;
     private static final int CORRIDOR_MAX_LENGTH = 24;
@@ -67,10 +67,10 @@ public class NetsphereChunkPostProcessor {
 
     // Bridge generation constants
     private static final int BRIDGE_SEGMENT_Z = 256; // Z segment size for bridge placement
-    private static final double MEGABRIDGE_PROB = 0.06; // probability for megabridges
+    private static final double MEGABRIDGE_PROB = 0.16; // probability for megabridges
     private static final double WALKWAY_PROB = 0.12; // probability for walkways
     private static final int MEGABRIDGE_HALF_THICKNESS = 2; // vertical thickness = 2*+1 (so 5 blocks total)
-    private static final int MEGABRIDGE_WIDTH = 5; // width in Z direction
+    private static final int MEGABRIDGE_WIDTH = 9; // width in Z direction
     private static final int WALKWAY_WIDTH = 2; // width in Z direction
     private static final int WALKWAY_THICKNESS = 1; // vertical thickness
     private static final long MEGABRIDGE_SALT = 0xE3A4B01D63L;
@@ -265,9 +265,9 @@ public class NetsphereChunkPostProcessor {
                             // Check if walkway is hanging variant (rare)
                             boolean isHanging = hasWalk && hash01(level.getSeed() ^ WALKWAY_SALT ^ 0x14A6B1L, floorIndex, segZ) < 0.15;
                             
-                            // Hanging chains: place CHAIN blocks above walkway at intervals
-                            if (isHanging && (worldX & 3) == 0) {
-                                // Chains from walkwayY+6 down to walkwayY+1
+                            // Hanging chains: place CHAIN blocks only at walkway edges (left and right)
+                            if (isHanging && walkwayDistZ == WALKWAY_WIDTH / 2) {
+                                // Chains from walkwayY+6 down to walkwayY+1, only at edges
                                 if (y >= walkwayY + 1 && y <= walkwayY + 6) {
                                     chunk.setBlockState(pos, Blocks.CHAIN.defaultBlockState(), false);
                                     continue;
@@ -353,6 +353,38 @@ public class NetsphereChunkPostProcessor {
                     }
 
                     if (isFloorLayer && canErode) {
+                        // Check if we're on a bridge or walkway - if so, skip floor scrambling
+                        boolean onBridge = false;
+                        boolean onWalkway = false;
+                        
+                        if (isInCanyon) {
+                            // Check if on megabridge (reuse already calculated values)
+                            if (inBridgeZRange && y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
+                                if (!inBrokenSection) {
+                                    onBridge = true;
+                                }
+                            }
+                            
+                            // Check if on walkway (reuse already calculated values from walkway section)
+                            boolean hasWalk = hasWalkway(level.getSeed(), floorIndex, segZ);
+                            if (hasWalk) {
+                                int walkwayZCenter = walkwayZCenter(level.getSeed(), floorIndex, segZ);
+                                int walkwayDistZ = Math.abs(worldZ - walkwayZCenter);
+                                if (walkwayDistZ <= WALKWAY_WIDTH / 2) {
+                                    int walkwayY = floorTopY;
+                                    if (y >= walkwayY && y < walkwayY + WALKWAY_THICKNESS) {
+                                        onWalkway = true;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (onBridge || onWalkway) {
+                            // Don't apply floor scrambling to bridges/walkways
+                            continue;
+                        }
+                        
                         if (isInCanyon) {
                             // Inside canyon: only place ledges near walls
                             // But carve out space for ladders
