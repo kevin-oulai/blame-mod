@@ -206,30 +206,37 @@ public class NetsphereChunkPostProcessor {
                     }
                     
                     if (isInCanyon && inBridgeZRange) {
-                        // Check if we're in the broken middle section
-                        boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
+                        // Bridge spans from leftWallXAt+1 to rightWallXAt-1 (inside the void)
+                        int leftWall = leftWallXAt(centerX);
+                        int rightWall = rightWallXAt(centerX);
+                        boolean inBridgeXRange = worldX > leftWall && worldX < rightWall;
                         
-                        if (!inBrokenSection) {
-                            // Support beam 1 block below centerline
-                            if (y == floorTopY - 2) {
-                                chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
-                                continue;
-                            }
+                        if (inBridgeXRange) {
+                            // Check if we're in the broken middle section
+                            boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
                             
-                            // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
-                            if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
-                                if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                    // Top and bottom layers use polished deepslate
-                                    chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
-                                } else {
-                                    // Middle layers use smooth stone
-                                    chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                            if (!inBrokenSection) {
+                                // Support beam 1 block below centerline
+                                if (y == floorTopY - 2) {
+                                    chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                                    continue;
                                 }
-                                continue;
+                                
+                                // Bridge blocks in [floorTopY-1, floorTopY+MEGABRIDGE_HALF_THICKNESS]
+                                if (y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                    // Use SMOOTH_STONE or POLISHED_DEEPSLATE for bridge blocks
+                                    if (y == floorTopY - 1 || y == floorTopY + MEGABRIDGE_HALF_THICKNESS) {
+                                        // Top and bottom layers use polished deepslate
+                                        chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
+                                    } else {
+                                        // Middle layers use smooth stone
+                                        chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                    }
+                                    continue;
+                                }
                             }
+                            // If inBrokenSection, leave as air (don't place bridge blocks)
                         }
-                        // If inBrokenSection, leave as air (don't place bridge blocks)
                     }
                     
                     // Bridge anchors embedded in walls (1-2 blocks into wall)
@@ -262,38 +269,45 @@ public class NetsphereChunkPostProcessor {
                         if (inWalkwayZRange) {
                             int walkwayY = floorTopY; // or floorTopY+1, using floorTopY for now
                             
-                            // Check if walkway is hanging variant (rare)
-                            boolean isHanging = hasWalk && hash01(level.getSeed() ^ WALKWAY_SALT ^ 0x14A6B1L, floorIndex, segZ) < 0.15;
+                            // Walkway spans from leftWallXAt+1 to rightWallXAt-1 (inside the void)
+                            int leftWall = leftWallXAt(centerX);
+                            int rightWall = rightWallXAt(centerX);
+                            boolean inWalkwayXRange = worldX > leftWall && worldX < rightWall;
                             
-                            // Hanging chains: place CHAIN blocks only at walkway edges (left and right)
-                            if (isHanging && walkwayDistZ == WALKWAY_WIDTH / 2) {
-                                // Chains from walkwayY+6 down to walkwayY+1, only at edges
-                                if (y >= walkwayY + 1 && y <= walkwayY + 6) {
-                                    chunk.setBlockState(pos, Blocks.CHAIN.defaultBlockState(), false);
+                            if (inWalkwayXRange) {
+                                // Check if walkway is hanging variant (rare)
+                                boolean isHanging = hasWalk && hash01(level.getSeed() ^ WALKWAY_SALT ^ 0x14A6B1L, floorIndex, segZ) < 0.15;
+                                
+                                // Hanging chains: place CHAIN blocks only at walkway edges (left and right)
+                                if (isHanging && walkwayDistZ == WALKWAY_WIDTH / 2) {
+                                    // Chains from walkwayY+6 down to walkwayY+1, only at edges
+                                    if (y >= walkwayY + 1 && y <= walkwayY + 6) {
+                                        chunk.setBlockState(pos, Blocks.CHAIN.defaultBlockState(), false);
+                                        continue;
+                                    }
+                                }
+                                
+                                // Railing at walkway edges
+                                if (walkwayDistZ == WALKWAY_WIDTH / 2 && y == walkwayY + 1) {
+                                    chunk.setBlockState(pos, Blocks.IRON_BARS.defaultBlockState(), false);
                                     continue;
                                 }
-                            }
-                            
-                            // Railing at walkway edges
-                            if (walkwayDistZ == WALKWAY_WIDTH / 2 && y == walkwayY + 1) {
-                                chunk.setBlockState(pos, Blocks.IRON_BARS.defaultBlockState(), false);
-                                continue;
-                            }
-                            
-                            // Walkway blocks: thickness WALKWAY_THICKNESS at walkwayY
-                            if (y >= walkwayY && y < walkwayY + WALKWAY_THICKNESS) {
-                                int layerInWalkway = y - walkwayY;
-                                if (layerInWalkway == 0) {
-                                    // Bottom layer: IRON_BLOCK
-                                    chunk.setBlockState(pos, Blocks.IRON_BLOCK.defaultBlockState(), false);
-                                } else if (layerInWalkway == WALKWAY_THICKNESS - 1) {
-                                    // Top layer: LIGHT_GRAY_CONCRETE
-                                    chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
-                                } else {
-                                    // Middle layers: SMOOTH_STONE
-                                    chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                
+                                // Walkway blocks: thickness WALKWAY_THICKNESS at walkwayY
+                                if (y >= walkwayY && y < walkwayY + WALKWAY_THICKNESS) {
+                                    int layerInWalkway = y - walkwayY;
+                                    if (layerInWalkway == 0) {
+                                        // Bottom layer: IRON_BLOCK
+                                        chunk.setBlockState(pos, Blocks.IRON_BLOCK.defaultBlockState(), false);
+                                    } else if (layerInWalkway == WALKWAY_THICKNESS - 1) {
+                                        // Top layer: LIGHT_GRAY_CONCRETE
+                                        chunk.setBlockState(pos, Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState(), false);
+                                    } else {
+                                        // Middle layers: SMOOTH_STONE
+                                        chunk.setBlockState(pos, Blocks.SMOOTH_STONE.defaultBlockState(), false);
+                                    }
+                                    continue;
                                 }
-                                continue;
                             }
                         }
                     }
