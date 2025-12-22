@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "bottom": "minecraft:block/oak_planks",
+    "top": "minecraft:block/red_bed_top",
+    "side": "minecraft:block/red_bed_side"
+  }
+}
+
