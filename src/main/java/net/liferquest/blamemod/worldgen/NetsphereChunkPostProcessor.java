@@ -468,7 +468,7 @@ public class NetsphereChunkPostProcessor {
                             // -------------------------
                             if (!isInCanyon) {
                                 int corridorSegZ = floorDiv(worldZ, CORRIDOR_SEGMENT);
-                                boolean hasCorridor = hasCorridorSite(level.getSeed(), worldX, worldZ, corridorSegZ);
+                                boolean hasCorridor = hasCorridorSite(level.getSeed(), worldX, worldZ, corridorSegZ, floorIndex);
                                 
                                 if (hasCorridor) {
                                     int baseY = corridorBaseY(level.getSeed(), floorIndex, corridorSegZ);
@@ -714,9 +714,11 @@ public class NetsphereChunkPostProcessor {
 
     // Check if a corridor site exists at the given chunk and segment
     // chunkX and chunkZ are world coordinates (will be converted to chunk coordinates)
-    private static boolean hasCorridorSite(long seed, int chunkX, int chunkZ, int segZ) {
+    private static boolean hasCorridorSite(long seed, int chunkX, int chunkZ, int segZ, int floorIndex) {
         int chunkCoordX = chunkX >> 4;
-        double prob = hash01(seed ^ CORRIDOR_SALT, chunkCoordX, segZ);
+        // Combine floorIndex into the hash by mixing it with segZ
+        long hashSeed = seed ^ CORRIDOR_SALT ^ ((long) floorIndex * 0x9E3779B97F4A7C15L);
+        double prob = hash01(hashSeed, chunkCoordX, segZ);
         return prob < CORRIDOR_PROB;
     }
 
