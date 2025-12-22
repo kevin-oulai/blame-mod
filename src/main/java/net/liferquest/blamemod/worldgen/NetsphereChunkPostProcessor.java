@@ -464,6 +464,30 @@ public class NetsphereChunkPostProcessor {
                             }
                         } else {
                             // -------------------------
+                            // Corridor generation (new system - horizontal corridors along Z)
+                            // -------------------------
+                            if (!isInCanyon) {
+                                int corridorSegZ = floorDiv(worldZ, CORRIDOR_SEGMENT);
+                                boolean hasCorridor = hasCorridorSite(level.getSeed(), worldX, worldZ, corridorSegZ);
+                                
+                                if (hasCorridor) {
+                                    int baseY = corridorBaseY(level.getSeed(), floorIndex, corridorSegZ);
+                                    int depth = corridorDepth(level.getSeed(), floorIndex, corridorSegZ);
+                                    
+                                    // Check if y is in the corridor height range
+                                    if (y >= baseY && y < baseY + CORRIDOR_HEIGHT) {
+                                        int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
+                                        
+                                        // Carve corridor if depthFromFace is within [depth, depth+CORRIDOR_WIDTH)
+                                        if (depthFromFace >= depth && depthFromFace < depth + CORRIDOR_WIDTH) {
+                                            chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // -------------------------
                             // Facade carving (increased frequency + corridors)
                             // -------------------------
                             int distIntoWall = distFromCenter - CANYON_HALF_WIDTH;
