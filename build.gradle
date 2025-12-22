@@ -2,7 +2,7 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.26'
+    id 'net.neoforged.moddev' version '2.0.71'
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
