@@ -11,6 +11,7 @@ import net.minecraft.world.level.dimension.LevelStem;
 /**
  * Defines dimension keys for the Netsphere custom dimension
  */
+@SuppressWarnings("null")
 public class ModDimensions {
     
     // Netsphere dimension keys

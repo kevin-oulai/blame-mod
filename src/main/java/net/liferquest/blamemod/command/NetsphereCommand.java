@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * Command to teleport players to the Netsphere dimension
  */
+@SuppressWarnings("null")
 public class NetsphereCommand {
     
     /**

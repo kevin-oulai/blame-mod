@@ -15,6 +15,7 @@ import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 /**
  * Handles LevelStem registration for custom dimensions
  */
+@SuppressWarnings("null")
 public class ModLevelStems {
     
     /**

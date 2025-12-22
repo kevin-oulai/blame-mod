@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
+@SuppressWarnings("null")
 public class RedstoneBedBlock extends Block {
     public RedstoneBedBlock(Properties properties) {
         super(properties);
