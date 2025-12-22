@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.level.ChunkDataEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 /**
@@ -92,7 +93,7 @@ public class NetsphereChunkPostProcessor {
     private static final double CORRIDOR_BRANCH_PROB = 0.25; // probability of branching at each segment
     private static final int CORRIDOR_MAX_BRANCHES = 16; // max branches per corridor
     private static final int CORRIDOR_BRANCH_SEGMENT = 16; // segment size for branch checks
-    private static final double CORRIDOR_LIGHT_BROKEN_PROB = 0.7; // probability of broken lights
+    private static final double CORRIDOR_LIGHT_BROKEN_PROB = 0.95; // probability of broken lights
     private static final int CORRIDOR_STAIRS_SEGMENT = 12; // segment size for stairs
     private static final double CORRIDOR_STAIRS_PROB = 0.25; // probability of stairs up/down
     private static final long CORRIDOR_SALT = 0xC0C1D0C1L; // salt for corridor generation
@@ -110,6 +111,26 @@ public class NetsphereChunkPostProcessor {
         // Only process if chunk is a LevelChunk (fully loaded)
         if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) return;
 
+        // Process chunk to ensure it has our custom generation
+        processChunk(serverLevel, levelChunk);
+    }
+
+    // Also process chunks before they're saved to ensure fresh generation is processed
+    @SubscribeEvent
+    public static void onChunkDataSave(ChunkDataEvent.Save event) {
+        // Only process on server side
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+
+        // Only process Netsphere dimension
+        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL)) return;
+
+        ChunkAccess chunk = event.getChunk();
+
+        // Only process if chunk is a LevelChunk (fully loaded)
+        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) return;
+
+        // Process chunk before saving to ensure it has our custom generation
+        // This ensures freshly generated chunks are processed, not just loaded ones
         processChunk(serverLevel, levelChunk);
     }
 
