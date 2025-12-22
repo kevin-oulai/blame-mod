@@ -63,7 +63,7 @@ public class NetsphereChunkPostProcessor {
     private static final int CORRIDOR_WIDTH_OLD = 3;
     private static final int CORRIDOR_HEIGHT_OLD = 4;
     private static final double CORRIDOR_BRANCH_PROBABILITY = 0.15; // chance to branch at each step
-    private static final int CORRIDOR_MAX_BRANCHES = 3; // max branches per corridor
+    private static final int CORRIDOR_MAX_BRANCHES_OLD = 3; // max branches per corridor (old system)
 
     // Bridge generation constants
     private static final int BRIDGE_SEGMENT_Z = 256; // Z segment size for bridge placement
@@ -80,9 +80,17 @@ public class NetsphereChunkPostProcessor {
     private static final int CORRIDOR_SEGMENT = 128; // Z segment size for corridor placement
     private static final double CORRIDOR_PROB = 0.08; // probability for corridor sites
     private static final int CORRIDOR_MIN_DEPTH = 4; // minimum depth from canyon face
-    private static final int CORRIDOR_MAX_DEPTH = 24; // maximum depth from canyon face
-    private static final int CORRIDOR_WIDTH = 3; // corridor width
-    private static final int CORRIDOR_HEIGHT = 4; // corridor height
+    private static final int CORRIDOR_MAX_DEPTH = 80; // maximum depth from canyon face (extended deep)
+    private static final int CORRIDOR_MIN_WIDTH = 2; // minimum corridor width
+    private static final int CORRIDOR_MAX_WIDTH = 5; // maximum corridor width
+    private static final int CORRIDOR_MIN_HEIGHT = 3; // minimum corridor height
+    private static final int CORRIDOR_MAX_HEIGHT = 5; // maximum corridor height
+    private static final double CORRIDOR_BRANCH_PROB = 0.25; // probability of branching at each segment
+    private static final int CORRIDOR_MAX_BRANCHES = 8; // max branches per corridor
+    private static final int CORRIDOR_BRANCH_SEGMENT = 16; // segment size for branch checks
+    private static final double CORRIDOR_LIGHT_BROKEN_PROB = 0.3; // probability of broken lights
+    private static final int CORRIDOR_STAIRS_SEGMENT = 12; // segment size for stairs
+    private static final double CORRIDOR_STAIRS_PROB = 0.15; // probability of stairs up/down
     private static final long CORRIDOR_SALT = 0xC0C1D0C1L; // salt for corridor generation
 
     @SubscribeEvent
@@ -464,7 +472,7 @@ public class NetsphereChunkPostProcessor {
                             }
                         } else {
                             // -------------------------
-                            // Corridor generation (new system - horizontal corridors along Z)
+                            // Corridor generation (new system - horizontal corridors along Z with branches, stairs, variations)
                             // -------------------------
                             if (!isInCanyon) {
                                 int corridorSegZ = floorDiv(worldZ, CORRIDOR_SEGMENT);
@@ -474,11 +482,32 @@ public class NetsphereChunkPostProcessor {
                                     int baseY = corridorBaseY(level.getSeed(), floorIndex, corridorSegZ);
                                     int depth = corridorDepth(level.getSeed(), floorIndex, corridorSegZ);
                                     
-                                    // Check if y is in the corridor height range
-                                    if (y >= baseY && y < baseY + CORRIDOR_HEIGHT) {
+                                    // Calculate local Z within segment for variations
+                                    int localZ = Math.floorMod(worldZ, CORRIDOR_SEGMENT);
+                                    int corridorBaseSegZ = corridorSegZ * CORRIDOR_SEGMENT;
+                                    int actualLocalZ = worldZ - corridorBaseSegZ;
+                                    
+                                    // Get variable width and height
+                                    int width = corridorWidth(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                    int height = corridorHeight(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                    
+                                    // Get stairs Y offset
+                                    int stairsYOffset = corridorStairsYOffset(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                    int currentBaseY = baseY + stairsYOffset;
+                                    
+                                    // Check if y is in the corridor height range (with stairs offset)
+                                    if (y >= currentBaseY && y < currentBaseY + height) {
                                         int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
                                         
-                                        boolean inMainCorridor = depthFromFace >= depth && depthFromFace < depth + CORRIDOR_WIDTH;
+                                        // Main corridor at variable depth with variable width
+                                        boolean inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width;
+                                        
+                                        // Check for branches (extend corridors deeper at branch points)
+                                        boolean hasBranch = hasCorridorBranch(level.getSeed(), floorIndex, corridorSegZ, actualLocalZ);
+                                        if (hasBranch && depthFromFace >= depth + width && depthFromFace < depth + width + 8) {
+                                            // Branch extends 8 blocks deeper
+                                            inMainCorridor = true;
+                                        }
                                         
                                         // Perpendicular connector tunnels (access tunnels from facade to corridor)
                                         // Generate every 12 blocks along Z, width 2 blocks
@@ -491,20 +520,21 @@ public class NetsphereChunkPostProcessor {
                                         
                                         if (inMainCorridor || inConnector) {
                                             // Door frame blocks where connector meets main corridor (check first to override)
-                                            if (atConnectorJunction && (y == baseY || y == baseY + CORRIDOR_HEIGHT - 1)) {
+                                            if (atConnectorJunction && (y == currentBaseY || y == currentBaseY + height - 1)) {
                                                 chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
-                                            } else if (y == baseY) {
-                                                // Floor: place POLISHED_DEEPSLATE tiles occasionally
-                                                double tileChance = hash01(level.getSeed() ^ CORRIDOR_SALT ^ 0xF1000L, worldX, worldZ);
-                                                if (tileChance < 0.3) { // 30% chance
-                                                    chunk.setBlockState(pos, Blocks.POLISHED_DEEPSLATE.defaultBlockState(), false);
-                                                } else {
-                                                    chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
-                                                }
-                                            } else if (y == baseY + CORRIDOR_HEIGHT - 1) {
-                                                // Ceiling: place SEA_LANTERN every 8 blocks (deterministic pattern)
+                                            } else if (y == currentBaseY) {
+                                                // Floor: just air (removed blackstone/polished deepslate tiles)
+                                                chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                            } else if (y == currentBaseY + height - 1) {
+                                                // Ceiling: place SEA_LANTERN every 8 blocks, sometimes broken
                                                 if ((worldZ & 7) == 0) { // Every 8 blocks
-                                                    chunk.setBlockState(pos, Blocks.SEA_LANTERN.defaultBlockState(), false);
+                                                    double brokenChance = hash01(level.getSeed() ^ CORRIDOR_SALT ^ 0xB000300L, worldX, worldZ);
+                                                    if (brokenChance < CORRIDOR_LIGHT_BROKEN_PROB) {
+                                                        // Broken light: use dead lantern or nothing
+                                                        chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
+                                                    } else {
+                                                        chunk.setBlockState(pos, Blocks.SEA_LANTERN.defaultBlockState(), false);
+                                                    }
                                                 } else {
                                                     chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                                                 }
@@ -567,7 +597,7 @@ public class NetsphereChunkPostProcessor {
                                 if (corridorInfo != null && isInCorridor(worldX, worldZ, y, corridorInfo)) {
                                     // Carve corridor space
                                     int corridorLocalY = y - corridorInfo.baseY;
-                                    if (corridorLocalY >= 0 && corridorLocalY < CORRIDOR_HEIGHT) {
+                                    if (corridorLocalY >= 0 && corridorLocalY < CORRIDOR_HEIGHT_OLD) {
                                         chunk.setBlockState(pos, Blocks.AIR.defaultBlockState(), false);
                                         continue;
                                     }
@@ -741,6 +771,49 @@ public class NetsphereChunkPostProcessor {
         return depth;
     }
 
+    // Returns deterministic width for a corridor at a specific Z position
+    private static int corridorWidth(long seed, int floorIndex, int segZ, int localZ) {
+        int branchSeg = localZ / CORRIDOR_BRANCH_SEGMENT;
+        long widthSeed = seed ^ CORRIDOR_SALT ^ 0x501D700L ^ ((long) floorIndex * 0x9E3779B97F4A7C15L) ^ ((long) branchSeg * 0xC13FA9A902A6328FL);
+        double widthFrac = hash01(widthSeed, segZ, branchSeg);
+        int widthRange = CORRIDOR_MAX_WIDTH - CORRIDOR_MIN_WIDTH + 1;
+        int width = CORRIDOR_MIN_WIDTH + (int) (widthFrac * widthRange);
+        if (width > CORRIDOR_MAX_WIDTH) width = CORRIDOR_MAX_WIDTH;
+        return width;
+    }
+
+    // Returns deterministic height for a corridor at a specific Z position
+    private static int corridorHeight(long seed, int floorIndex, int segZ, int localZ) {
+        int branchSeg = localZ / CORRIDOR_BRANCH_SEGMENT;
+        long heightSeed = seed ^ CORRIDOR_SALT ^ 0x831670L ^ ((long) floorIndex * 0x9E3779B97F4A7C15L) ^ ((long) branchSeg * 0xC13FA9A902A6328FL);
+        double heightFrac = hash01(heightSeed, segZ, branchSeg);
+        int heightRange = CORRIDOR_MAX_HEIGHT - CORRIDOR_MIN_HEIGHT + 1;
+        int height = CORRIDOR_MIN_HEIGHT + (int) (heightFrac * heightRange);
+        if (height > CORRIDOR_MAX_HEIGHT) height = CORRIDOR_MAX_HEIGHT;
+        return height;
+    }
+
+    // Returns Y offset for stairs (can be -1, 0, or +1 for down, level, up)
+    private static int corridorStairsYOffset(long seed, int floorIndex, int segZ, int localZ) {
+        int stairsSeg = localZ / CORRIDOR_STAIRS_SEGMENT;
+        long stairsSeed = seed ^ CORRIDOR_SALT ^ 0x574415L ^ ((long) floorIndex * 0x9E3779B97F4A7C15L) ^ ((long) stairsSeg * 0xC13FA9A902A6328FL);
+        double stairsFrac = hash01(stairsSeed, segZ, stairsSeg);
+        if (stairsFrac < CORRIDOR_STAIRS_PROB) {
+            return -1; // Down
+        } else if (stairsFrac < CORRIDOR_STAIRS_PROB * 2) {
+            return 1; // Up
+        }
+        return 0; // Level
+    }
+
+    // Check if there's a branch at this position
+    private static boolean hasCorridorBranch(long seed, int floorIndex, int segZ, int localZ) {
+        int branchSeg = localZ / CORRIDOR_BRANCH_SEGMENT;
+        long branchSeed = seed ^ CORRIDOR_SALT ^ 0x8040C00L ^ ((long) floorIndex * 0x9E3779B97F4A7C15L) ^ ((long) branchSeg * 0xC13FA9A902A6328FL);
+        double branchFrac = hash01(branchSeed, segZ, branchSeg);
+        return branchFrac < CORRIDOR_BRANCH_PROB;
+    }
+
     // Helper class to hold vertical shaft information
     private static class ShaftInfo {
         final int shaftX;
@@ -875,21 +948,21 @@ public class NetsphereChunkPostProcessor {
         int dz = worldZ - corridor.startZ;
         int dy = y - corridor.baseY;
         
-        if (dy < 0 || dy >= CORRIDOR_HEIGHT) return false;
+        if (dy < 0 || dy >= CORRIDOR_HEIGHT_OLD) return false;
 
         boolean inMain = false;
         switch (corridor.direction) {
             case 0: // X+
-                inMain = (dx >= 0 && dx < corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH / 2);
+                inMain = (dx >= 0 && dx < corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH_OLD / 2);
                 break;
             case 1: // X-
-                inMain = (dx <= 0 && dx > -corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH / 2);
+                inMain = (dx <= 0 && dx > -corridor.length && Math.abs(dz) <= CORRIDOR_WIDTH_OLD / 2);
                 break;
             case 2: // Z+
-                inMain = (dz >= 0 && dz < corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH / 2);
+                inMain = (dz >= 0 && dz < corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH_OLD / 2);
                 break;
             case 3: // Z-
-                inMain = (dz <= 0 && dz > -corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH / 2);
+                inMain = (dz <= 0 && dz > -corridor.length && Math.abs(dx) <= CORRIDOR_WIDTH_OLD / 2);
                 break;
         }
 
@@ -919,16 +992,16 @@ public class NetsphereChunkPostProcessor {
             boolean inBranch = false;
             switch (branchDir) {
                 case 0: // X+
-                    inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH / 2);
+                    inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 1: // X-
-                    inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH / 2);
+                    inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 2: // Z+
-                    inBranch = (bdz >= 0 && bdz < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH / 2);
+                    inBranch = (bdz >= 0 && bdz < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 3: // Z-
-                    inBranch = (bdz <= 0 && bdz > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH / 2);
+                    inBranch = (bdz <= 0 && bdz > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
             }
             
