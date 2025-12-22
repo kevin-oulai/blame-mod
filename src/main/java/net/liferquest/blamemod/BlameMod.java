@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import net.liferquest.blamemod.block.ModBlocks;
 import net.liferquest.blamemod.command.CanyonInfoCommand;
 import net.liferquest.blamemod.command.NetsphereCommand;
+import net.liferquest.blamemod.item.ModItems;
 import net.liferquest.blamemod.worldgen.ModBiomes;
 import net.liferquest.blamemod.worldgen.NetsphereChunkPostProcessor;
 import net.minecraftforge.api.distmarker.Dist;
@@ -43,6 +44,9 @@ public class BlameMod {
         
         // Register custom blocks
         ModBlocks.register(modEventBus);
+        
+        // Register custom items
+        ModItems.register(modEventBus);
         
         // Note: Dimensions (LevelStems) are registered via JSON data files in data/blamemod/dimension/
         // and data/blamemod/dimension_type/, not through DeferredRegister in 1.21+

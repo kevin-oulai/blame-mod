@@ -115,7 +115,7 @@ public class NetsphereChunkPostProcessor {
         processChunk(serverLevel, levelChunk);
     }
 
-    // Also process chunks before they're saved to ensure fresh generation is processed
+    // Process chunks before they're saved to ensure fresh generation is processed
     @SubscribeEvent
     public static void onChunkDataSave(ChunkDataEvent.Save event) {
         // Only process on server side
@@ -129,8 +129,8 @@ public class NetsphereChunkPostProcessor {
         // Only process if chunk is a LevelChunk (fully loaded)
         if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) return;
 
-        // Process chunk before saving to ensure it has our custom generation
-        // This ensures freshly generated chunks are processed, not just loaded ones
+        // Process chunk to replace all overworld terrain with our custom generation
+        // This ensures freshly generated chunks are processed before being saved
         processChunk(serverLevel, levelChunk);
     }
 
