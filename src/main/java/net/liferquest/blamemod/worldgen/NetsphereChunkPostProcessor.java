@@ -372,15 +372,20 @@ public class NetsphereChunkPostProcessor {
                         boolean onWalkway = false;
                         
                         if (isInCanyon) {
-                            // Check if on megabridge (reuse already calculated values)
+                            // Check if on megabridge (must check X, Y, and Z ranges)
                             if (inBridgeZRange && y >= floorTopY - 1 && y <= floorTopY + MEGABRIDGE_HALF_THICKNESS) {
-                                boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
-                                if (!inBrokenSection) {
-                                    onBridge = true;
+                                int leftWall = leftWallXAt(centerX);
+                                int rightWall = rightWallXAt(centerX);
+                                boolean inBridgeXRange = worldX > leftWall && worldX < rightWall;
+                                if (inBridgeXRange) {
+                                    boolean inBrokenSection = isBridgeBroken && Math.abs(worldX - centerX) < 12;
+                                    if (!inBrokenSection) {
+                                        onBridge = true;
+                                    }
                                 }
                             }
                             
-                            // Check if on walkway (reuse already calculated values from walkway section)
+                            // Check if on walkway (must check X, Y, and Z ranges)
                             boolean hasWalk = hasWalkway(level.getSeed(), floorIndex, segZ);
                             if (hasWalk) {
                                 int walkwayZCenter = walkwayZCenter(level.getSeed(), floorIndex, segZ);
@@ -388,7 +393,12 @@ public class NetsphereChunkPostProcessor {
                                 if (walkwayDistZ <= WALKWAY_WIDTH / 2) {
                                     int walkwayY = floorTopY;
                                     if (y >= walkwayY && y < walkwayY + WALKWAY_THICKNESS) {
-                                        onWalkway = true;
+                                        int leftWall = leftWallXAt(centerX);
+                                        int rightWall = rightWallXAt(centerX);
+                                        boolean inWalkwayXRange = worldX > leftWall && worldX < rightWall;
+                                        if (inWalkwayXRange) {
+                                            onWalkway = true;
+                                        }
                                     }
                                 }
                             }
