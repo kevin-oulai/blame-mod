@@ -2,7 +2,7 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.71'
+    id 'net.minecraftforge.gradle' version '6.0.+'
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
@@ -71,24 +71,24 @@ minecraft {
             // "SCAN": For mods scan.
             // "REGISTRIES": For firing of registry events.
             // "REGISTRYDUMP": For getting the contents of all registries.
-            property 'neoforge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.markers', 'REGISTRIES'
 
             // Recommended logging level for the console
             // You can set various levels here.
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            property 'neoforge.logging.console.level', 'debug'
+            property 'forge.logging.console.level', 'debug'
         }
 
         client {
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            property 'neoforge.enabledGameTestNamespaces', mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
             
             // Reduce memory usage
             jvmArgs '-Xmx2G', '-Xms512M'
         }
 
         server {
-            property 'neoforge.enabledGameTestNamespaces', mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
         }
 
@@ -96,7 +96,7 @@ minecraft {
         // By default, the server will crash when no gametests are provided.
         // The gametest system is also enabled by default for other run configs under the /test command.
         gameTestServer {
-            property 'neoforge.enabledGameTestNamespaces', mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         data {
@@ -129,7 +129,7 @@ dependencies {
     // The "userdev" classifier will be requested and setup by NeoGradle.
     // If the group id is "net.minecraft" and the artifact id is one of ["client", "server", "joined"],
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
-    minecraft "net.neoforged:neoforge:${minecraft_version}-${neoforge_version}"
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
@@ -157,7 +157,7 @@ dependencies {
 tasks.named('processResources', ProcessResources).configure {
     var replaceProperties = [
             minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            neoforge_version: neoforge_version, neoforge_version_range: neoforge_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
             loader_version_range: loader_version_range,
             mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
             mod_authors: mod_authors, mod_description: mod_description,

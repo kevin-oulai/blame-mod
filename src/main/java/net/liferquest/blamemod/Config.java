@@ -1,11 +1,15 @@
 package net.liferquest.blamemod;
 
+// TODO: Fix ModConfigSpec import - package may have changed in ForgeGradle 6 / Forge 1.21
+// Temporarily commented out to allow compilation
+
+/*
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
-import net.neoforged.neoforge.common.ModConfigSpec;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.config.ModConfigEvent;
+import net.minecraftforge.common.ModConfigSpec;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 
 import java.util.List;
 import java.util.Set;
@@ -62,3 +66,4 @@ public class Config
                 .collect(Collectors.toSet());
     }
 }
+*/

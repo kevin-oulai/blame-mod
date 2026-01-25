@@ -5,18 +5,24 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
 
 public class ModBiomes {
     // DeferredRegister for managing biome registrations
     public static final DeferredRegister<Biome> BIOMES = 
         DeferredRegister.create(Registries.BIOME, BlameMod.MOD_ID);
 
-    // Define the custom biome: Blame City Canyon
+    // Define the custom biome: Blame City Canyon - lazy initialized to avoid early registry access
+    private static ResourceKey<Biome> blameCityCanyon;
+    
     @SuppressWarnings("null")
-    public static final ResourceKey<Biome> BLAME_CITY_CANYON = 
-        ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(BlameMod.MOD_ID, "blame_city_canyon"));
+    public static ResourceKey<Biome> BLAME_CITY_CANYON() {
+        if (blameCityCanyon == null) {
+            blameCityCanyon = ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(BlameMod.MOD_ID, "blame_city_canyon"));
+        }
+        return blameCityCanyon;
+    }
 
     /**
      * Registers all biomes to the event bus

@@ -41,7 +41,7 @@ public class NetsphereCommand {
         }
         
         // Get the Netsphere dimension
-        ServerLevel netsphereLevel = source.getServer().getLevel(ModDimensions.NETSPHERE_LEVEL);
+        ServerLevel netsphereLevel = source.getServer().getLevel(ModDimensions.NETSPHERE_LEVEL());
         
         if (netsphereLevel == null) {
             source.sendFailure(Component.literal("Netsphere dimension not found!"));

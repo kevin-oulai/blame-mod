@@ -1,18 +1,28 @@
 package net.liferquest.blamemod.worldgen;
 
+import net.liferquest.blamemod.BlameMod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.neoforged.neoforge.event.level.ChunkEvent;
-import net.neoforged.neoforge.event.level.ChunkDataEvent;
-import net.neoforged.bus.api.SubscribeEvent;
+import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.level.ChunkDataEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
  * Post-processes chunks in the Netsphere dimension to create canyon structures
  */
+@Mod.EventBusSubscriber(modid = BlameMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 @SuppressWarnings("null")
 public class NetsphereChunkPostProcessor {
+
+    private static final String PROCESSED_TAG = BlameMod.MOD_ID + ":netsphere_processed_v3";
+    // Tracks processed status for currently loaded chunks only (cleared on unload).
+    // Persistence is handled via ChunkDataEvent.Load/Save using PROCESSED_TAG.
+    private static final java.util.Set<Long> PROCESSED_LOADED =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private static final int CANYON_HALF_WIDTH = 80;
     @SuppressWarnings("unused")
@@ -32,7 +42,7 @@ public class NetsphereChunkPostProcessor {
 
     // Floor type constants
     private static final int FLOOR_TYPE_CLEAN_SLAB = 0;
-    private static final int FLOOR_TYPE_INDUSTRIAL = 1;
+    // (Removed) FLOOR_TYPE_INDUSTRIAL = 1
     private static final int FLOOR_TYPE_BROKEN = 2;
 
     private static final long FLOOR_TYPE_SALT = 0xF1001E5FL;
@@ -105,44 +115,75 @@ public class NetsphereChunkPostProcessor {
     private static final long CORRIDOR_SALT = 0xC0C1D0C1L; // salt for corridor generation
 
     @SubscribeEvent
+    public static void onChunkDataLoad(ChunkDataEvent.Load event) {
+        // Only process on server side
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+
+        // Only process Netsphere dimension
+        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL())) return;
+
+        ChunkAccess chunk = event.getChunk();
+        long key = chunkKey(chunk.getPos());
+
+        // Restore processed status from NBT (if present)
+        if (event.getData().getBoolean(PROCESSED_TAG)) {
+            PROCESSED_LOADED.add(key);
+        }
+    }
+
+    @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
         // Only process on server side
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
 
         // Only process Netsphere dimension
-        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL)) return;
+        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL())) return;
 
         ChunkAccess chunk = event.getChunk();
 
         // Only process if chunk is a LevelChunk (fully loaded)
         if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) return;
 
-        // Process chunk to ensure it has our custom generation
+        // Process each chunk only once. This prevents re-carving on every load and avoids
+        // overwriting player changes.
+        long key = chunkKey(levelChunk.getPos());
+        if (PROCESSED_LOADED.contains(key)) return;
+
         processChunk(serverLevel, levelChunk);
+        PROCESSED_LOADED.add(key);
     }
 
-    // Process chunks before they're saved to ensure fresh generation is processed
+    @SubscribeEvent
+    public static void onChunkUnload(ChunkEvent.Unload event) {
+        // Only process on server side
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+
+        // Only process Netsphere dimension
+        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL())) return;
+
+        ChunkAccess chunk = event.getChunk();
+        PROCESSED_LOADED.remove(chunkKey(chunk.getPos()));
+    }
+
+    // Persist processed marker in chunk NBT on save
     @SubscribeEvent
     public static void onChunkDataSave(ChunkDataEvent.Save event) {
         // Only process on server side
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
 
         // Only process Netsphere dimension
-        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL)) return;
+        if (!serverLevel.dimension().equals(ModDimensions.NETSPHERE_LEVEL())) return;
 
         ChunkAccess chunk = event.getChunk();
-
-        // Only process if chunk is a LevelChunk (fully loaded)
-        if (!(chunk instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk)) return;
-
-        // Process chunk to replace all overworld terrain with our custom generation
-        // This ensures freshly generated chunks are processed before being saved
-        processChunk(serverLevel, levelChunk);
+        long key = chunkKey(chunk.getPos());
+        if (PROCESSED_LOADED.contains(key)) {
+            event.getData().putBoolean(PROCESSED_TAG, true);
+        }
     }
 
     public static void processChunk(ServerLevel level, net.minecraft.world.level.chunk.LevelChunk chunk) {
         int minY = level.getMinBuildHeight();
-        int maxY = Math.min(level.getMaxBuildHeight(), 256);
+        int maxY = level.getMaxBuildHeight();
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
@@ -198,15 +239,6 @@ public class NetsphereChunkPostProcessor {
                     if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
                         floorThickness = 1;
                         floorBlock = Blocks.SMOOTH_STONE.defaultBlockState();
-                    } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
-                        floorThickness = 2 + (hash01(levelSeed ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-
-                        int layerInFloor = modFloor(y, FLOOR_SPACING);
-                        if (layerInFloor == floorThickness - 1) {
-                            floorBlock = Blocks.POLISHED_ANDESITE_SLAB.defaultBlockState();
-                        } else {
-                            floorBlock = Blocks.POLISHED_ANDESITE.defaultBlockState();
-                        }
                     } else { // FLOOR_TYPE_BROKEN
                         floorThickness = 1;
                         floorBlock = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
@@ -388,9 +420,7 @@ public class NetsphereChunkPostProcessor {
                         int nextFloorThickness;
                         if (nextFloorType == FLOOR_TYPE_CLEAN_SLAB) {
                             nextFloorThickness = 1;
-                        } else if (nextFloorType == FLOOR_TYPE_INDUSTRIAL) {
-                            nextFloorThickness = 2 + (hash01(levelSeed ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-                        } else {
+                        } else { // FLOOR_TYPE_BROKEN
                             nextFloorThickness = 1;
                         }
                         int nextFloorY = nextFloorIndex * FLOOR_SPACING + nextFloorThickness;
@@ -407,9 +437,7 @@ public class NetsphereChunkPostProcessor {
                                 int prevFloorThickness;
                                 if (prevFloorType == FLOOR_TYPE_CLEAN_SLAB) {
                                     prevFloorThickness = 1;
-                                } else if (prevFloorType == FLOOR_TYPE_INDUSTRIAL) {
-                                    prevFloorThickness = 2 + (hash01(levelSeed ^ FLOOR_TYPE_SALT, worldX, worldZ) > 0.5 ? 1 : 0);
-                                } else {
+                                } else { // FLOOR_TYPE_BROKEN
                                     prevFloorThickness = 1;
                                 }
                                 int prevFloorTopY = prevFloorBaseY + prevFloorThickness;
@@ -536,86 +564,84 @@ public class NetsphereChunkPostProcessor {
                                     int startOffset = corridorStartOffset(levelSeed, floorIndex, corridorSegZ);
                                     int direction = corridorDirection(levelSeed, floorIndex, corridorSegZ);
                                     
-                                    // Check if we're within the corridor's actual length range (accounting for start offset)
+                                    // Check if we're within the corridor's actual length range (accounting for start offset).
+                                    // If not, fall through to the normal wall/facade logic (don't leave vanilla blocks behind).
                                     int relativePos = actualLocalZ - startOffset;
-                                    if (relativePos < 0 || relativePos >= corridorLen) {
-                                        // Outside corridor length range, skip
-                                        continue;
-                                    }
-                                    
-                                    // Get variable width and height
-                                    int width = corridorWidth(levelSeed, floorIndex, corridorSegZ, relativePos);
-                                    int height = corridorHeight(levelSeed, floorIndex, corridorSegZ, relativePos);
-                                    
-                                    // Get stairs Y offset
-                                    int stairsYOffset = corridorStairsYOffset(levelSeed, floorIndex, corridorSegZ, relativePos);
-                                    int currentBaseY = baseY + stairsYOffset;
-                                    
-                                    // Check if y is in the corridor height range (with stairs offset)
-                                    if (y >= currentBaseY && y < currentBaseY + height) {
-                                        int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
+                                    if (relativePos >= 0 && relativePos < corridorLen) {
+                                        // Get variable width and height
+                                        int width = corridorWidth(levelSeed, floorIndex, corridorSegZ, relativePos);
+                                        int height = corridorHeight(levelSeed, floorIndex, corridorSegZ, relativePos);
                                         
-                                        // Determine if we're in the corridor based on direction
-                                        boolean inMainCorridor = false;
+                                        // Get stairs Y offset
+                                        int stairsYOffset = corridorStairsYOffset(levelSeed, floorIndex, corridorSegZ, relativePos);
+                                        int currentBaseY = baseY + stairsYOffset;
                                         
-                                        if (direction == 0 || direction == 1) {
-                                            // Z-direction corridor (original behavior)
-                                            inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width;
-                                        } else {
-                                            // X-direction corridor (left/right)
-                                            // For X-direction, the corridor runs along X axis at a fixed Z
-                                            // Check if we're at the right Z position (within width/2 of the corridor center Z)
-                                            int corridorCenterZ = corridorBaseSegZ + startOffset + (corridorLen / 2);
-                                            int distFromCorridorZ = Math.abs(worldZ - corridorCenterZ);
-                                            // For X-direction, we check depth and width in Z direction
-                                            inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width && distFromCorridorZ < (corridorLen / 2);
-                                        }
-                                        
-                                        // Check for branches (extend corridors deeper at branch points)
-                                        boolean hasBranch = hasCorridorBranch(levelSeed, floorIndex, corridorSegZ, relativePos);
-                                        if (hasBranch && depthFromFace >= depth + width && depthFromFace < depth + width + 8 && (direction == 0 || direction == 1)) {
-                                            // Branch extends 8 blocks deeper (only for Z-direction corridors)
-                                            inMainCorridor = true;
-                                        }
-                                        
-                                        // Perpendicular connector tunnels (access tunnels from facade to corridor)
-                                        // Generate every 12 blocks along Z, width 2 blocks (only for Z-direction corridors)
-                                        boolean inConnector = false;
-                                        if (direction == 0 || direction == 1) {
-                                            int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
-                                            int distFromConnectorZ = Math.abs(worldZ - connectorZ);
-                                            inConnector = distFromConnectorZ < 2 && depthFromFace >= 0 && depthFromFace <= depth;
-                                        }
-                                        
-                                        // Check if connector meets main corridor (door frame location)
-                                        boolean atConnectorJunction = inConnector && depthFromFace == depth;
-                                        
-                                        if (inMainCorridor || inConnector) {
-                                            // Door frame blocks where connector meets main corridor (check first to override)
-                                            if (atConnectorJunction && (y == currentBaseY || y == currentBaseY + height - 1)) {
-                                                chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
-                                            } else if (y == currentBaseY) {
-                                                // Floor: just air (removed blackstone/polished deepslate tiles)
-                                                chunk.setBlockState(pos, airState, false);
-                                            } else if (y == currentBaseY + height - 1) {
-                                                // Ceiling: place SEA_LANTERN every 8 blocks, sometimes broken
-                                                if ((worldZ & 7) == 0) { // Every 8 blocks
-                                                    double brokenChance = hash01(levelSeed ^ CORRIDOR_SALT ^ 0xB000300L, worldX, worldZ);
-                                                    if (brokenChance < CORRIDOR_LIGHT_BROKEN_PROB) {
-                                                        // Broken light: use dead lantern or nothing
-                                                        chunk.setBlockState(pos, airState, false);
-                                                    } else {
-                                                        chunk.setBlockState(pos, Blocks.SEA_LANTERN.defaultBlockState(), false);
-                                                    }
-                                                } else {
-                                                    chunk.setBlockState(pos, airState, false);
-                                                }
+                                        // Check if y is in the corridor height range (with stairs offset)
+                                        if (y >= currentBaseY && y < currentBaseY + height) {
+                                            int depthFromFace = Math.abs(worldX - centerX) - CANYON_HALF_WIDTH;
+                                            
+                                            // Determine if we're in the corridor based on direction
+                                            boolean inMainCorridor = false;
+                                            
+                                            if (direction == 0 || direction == 1) {
+                                                // Z-direction corridor (original behavior)
+                                                inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width;
                                             } else {
-                                                // Middle layers: just air
-                                                chunk.setBlockState(pos, airState, false);
+                                                // X-direction corridor (left/right)
+                                                // For X-direction, the corridor runs along X axis at a fixed Z
+                                                // Check if we're at the right Z position (within width/2 of the corridor center Z)
+                                                int corridorCenterZ = corridorBaseSegZ + startOffset + (corridorLen / 2);
+                                                int distFromCorridorZ = Math.abs(worldZ - corridorCenterZ);
+                                                // For X-direction, we check depth and width in Z direction
+                                                inMainCorridor = depthFromFace >= depth && depthFromFace < depth + width && distFromCorridorZ < (corridorLen / 2);
                                             }
                                             
-                                            continue;
+                                            // Check for branches (extend corridors deeper at branch points)
+                                            boolean hasBranch = hasCorridorBranch(levelSeed, floorIndex, corridorSegZ, relativePos);
+                                            if (hasBranch && depthFromFace >= depth + width && depthFromFace < depth + width + 8 && (direction == 0 || direction == 1)) {
+                                                // Branch extends 8 blocks deeper (only for Z-direction corridors)
+                                                inMainCorridor = true;
+                                            }
+                                            
+                                            // Perpendicular connector tunnels (access tunnels from facade to corridor)
+                                            // Generate every 12 blocks along Z, width 2 blocks (only for Z-direction corridors)
+                                            boolean inConnector = false;
+                                            if (direction == 0 || direction == 1) {
+                                                int connectorZ = (worldZ / 12) * 12; // Round down to nearest multiple of 12
+                                                int distFromConnectorZ = Math.abs(worldZ - connectorZ);
+                                                inConnector = distFromConnectorZ < 2 && depthFromFace >= 0 && depthFromFace <= depth;
+                                            }
+                                            
+                                            // Check if connector meets main corridor (door frame location)
+                                            boolean atConnectorJunction = inConnector && depthFromFace == depth;
+                                            
+                                            if (inMainCorridor || inConnector) {
+                                                // Door frame blocks where connector meets main corridor (check first to override)
+                                                if (atConnectorJunction && (y == currentBaseY || y == currentBaseY + height - 1)) {
+                                                    chunk.setBlockState(pos, Blocks.DEEPSLATE_BRICKS.defaultBlockState(), false);
+                                                } else if (y == currentBaseY) {
+                                                    // Floor: just air (removed blackstone/polished deepslate tiles)
+                                                    chunk.setBlockState(pos, airState, false);
+                                                } else if (y == currentBaseY + height - 1) {
+                                                    // Ceiling: place SEA_LANTERN every 8 blocks, sometimes broken
+                                                    if ((worldZ & 7) == 0) { // Every 8 blocks
+                                                        double brokenChance = hash01(levelSeed ^ CORRIDOR_SALT ^ 0xB000300L, worldX, worldZ);
+                                                        if (brokenChance < CORRIDOR_LIGHT_BROKEN_PROB) {
+                                                            // Broken light: use dead lantern or nothing
+                                                            chunk.setBlockState(pos, airState, false);
+                                                        } else {
+                                                            chunk.setBlockState(pos, Blocks.SEA_LANTERN.defaultBlockState(), false);
+                                                        }
+                                                    } else {
+                                                        chunk.setBlockState(pos, airState, false);
+                                                    }
+                                                } else {
+                                                    // Middle layers: just air
+                                                    chunk.setBlockState(pos, airState, false);
+                                                }
+                                                
+                                                continue;
+                                            }
                                         }
                                     }
                                 }
@@ -635,7 +661,6 @@ public class NetsphereChunkPostProcessor {
 
                                     // Lower thresholds for more frequent carving
                                     boolean allowFacade = switch (floorType) {
-                                        case FLOOR_TYPE_INDUSTRIAL -> n > 0.3;  // was 0.5
                                         case FLOOR_TYPE_BROKEN -> n > 0.5;     // was 0.75
                                         default -> n > 0.2;                    // was 0.4
                                     };
@@ -685,6 +710,10 @@ public class NetsphereChunkPostProcessor {
         }
 
         chunk.setUnsaved(true);
+    }
+
+    private static long chunkKey(ChunkPos pos) {
+        return ChunkPos.asLong(pos.x, pos.z);
     }
 
     // Returns centerX for a given worldZ, smoothly varying.
@@ -771,7 +800,8 @@ public class NetsphereChunkPostProcessor {
         h *= 0x94D049BB133111EBL;
         h ^= (h >>> 31);
 
-        return (int) ((h & 0x7FFFFFFFL) % 3);
+        // Only two floor types: clean slab (0) and broken (2)
+        return (((h & 0x7FFFFFFFL) % 2) == 0) ? FLOOR_TYPE_CLEAN_SLAB : FLOOR_TYPE_BROKEN;
     }
 
     // Check if a megabridge exists at the given floor and segment
@@ -1110,13 +1140,13 @@ public class NetsphereChunkPostProcessor {
                     inBranch = (bdx >= 0 && bdx < CORRIDOR_MAX_LENGTH_OLD / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 1: // X-
-                    inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
+                    inBranch = (bdx <= 0 && bdx > -CORRIDOR_MAX_LENGTH_OLD / 2 && Math.abs(bdz) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 2: // Z+
-                    inBranch = (bdz >= 0 && bdz < CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
+                    inBranch = (bdz >= 0 && bdz < CORRIDOR_MAX_LENGTH_OLD / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
                 case 3: // Z-
-                    inBranch = (bdz <= 0 && bdz > -CORRIDOR_MAX_LENGTH / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
+                    inBranch = (bdz <= 0 && bdz > -CORRIDOR_MAX_LENGTH_OLD / 2 && Math.abs(bdx) <= CORRIDOR_WIDTH_OLD / 2);
                     break;
             }
             
@@ -1200,9 +1230,7 @@ public class NetsphereChunkPostProcessor {
                 int floorThickness;
                 if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
                     floorThickness = 1;
-                } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
-                    floorThickness = 2 + (hash01(seed ^ FLOOR_TYPE_SALT, testX, preferredZ) > 0.5 ? 1 : 0);
-                } else {
+                } else { // FLOOR_TYPE_BROKEN
                     floorThickness = 1;
                 }
                 int floorTopY = floorBaseY + floorThickness;
@@ -1220,8 +1248,12 @@ public class NetsphereChunkPostProcessor {
                 var chunkAccess = level.getChunkSource().getChunk(chunkX, chunkZ, true);
                 
                 if (chunkAccess != null && chunkAccess instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk) {
-                    // Ensure chunk is post-processed (safe to call multiple times)
-                    processChunk(level, levelChunk);
+                    // Ensure chunk is post-processed for correct spawn finding
+                    long key = chunkKey(levelChunk.getPos());
+                    if (!PROCESSED_LOADED.contains(key)) {
+                        processChunk(level, levelChunk);
+                        PROCESSED_LOADED.add(key);
+                    }
                     
                     var floorState = level.getBlockState(floorPos);
                     var aboveState = level.getBlockState(abovePos);
@@ -1243,9 +1275,7 @@ public class NetsphereChunkPostProcessor {
                 int floorThickness;
                 if (floorType == FLOOR_TYPE_CLEAN_SLAB) {
                     floorThickness = 1;
-                } else if (floorType == FLOOR_TYPE_INDUSTRIAL) {
-                    floorThickness = 2 + (hash01(seed ^ FLOOR_TYPE_SALT, testX, preferredZ) > 0.5 ? 1 : 0);
-                } else {
+                } else { // FLOOR_TYPE_BROKEN
                     floorThickness = 1;
                 }
                 int floorTopY = floorBaseY + floorThickness;
@@ -1263,8 +1293,12 @@ public class NetsphereChunkPostProcessor {
                 var chunkAccess = level.getChunkSource().getChunk(chunkX, chunkZ, true);
                 
                 if (chunkAccess != null && chunkAccess instanceof net.minecraft.world.level.chunk.LevelChunk levelChunk) {
-                    // Ensure chunk is post-processed (safe to call multiple times)
-                    processChunk(level, levelChunk);
+                    // Ensure chunk is post-processed for correct spawn finding
+                    long key = chunkKey(levelChunk.getPos());
+                    if (!PROCESSED_LOADED.contains(key)) {
+                        processChunk(level, levelChunk);
+                        PROCESSED_LOADED.add(key);
+                    }
                     
                     var floorState = level.getBlockState(floorPos);
                     var aboveState = level.getBlockState(abovePos);

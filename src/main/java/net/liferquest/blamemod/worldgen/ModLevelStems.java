@@ -30,7 +30,7 @@ public class ModLevelStems {
         MultiNoiseBiomeSource biomeSource = MultiNoiseBiomeSource.createFromList(
                 new Climate.ParameterList<>(java.util.List.of(
                         Pair.of(Climate.parameters(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f), 
-                                biomes.getOrThrow(ModBiomes.BLAME_CITY_CANYON))
+                                biomes.getOrThrow(ModBiomes.BLAME_CITY_CANYON()))
                 ))
         );
         
@@ -42,9 +42,9 @@ public class ModLevelStems {
         
         // Register the LevelStem
         context.register(
-                ModDimensions.NETSPHERE_STEM,
+                ModDimensions.NETSPHERE_STEM(),
                 new LevelStem(
-                        dimensionTypes.getOrThrow(ModDimensions.NETSPHERE_TYPE),
+                        dimensionTypes.getOrThrow(ModDimensions.NETSPHERE_TYPE()),
                         chunkGenerator
                 )
         );

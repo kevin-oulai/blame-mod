@@ -7,18 +7,18 @@ import net.liferquest.blamemod.command.NetsphereCommand;
 import net.liferquest.blamemod.item.ModItems;
 import net.liferquest.blamemod.worldgen.ModBiomes;
 import net.liferquest.blamemod.worldgen.NetsphereChunkPostProcessor;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModLoadingContext;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+// import net.minecraftforge.fml.config.ModConfig; // TODO: Re-enable when Config is fixed
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 // Gradle command: ./gradlew runClient
@@ -32,12 +32,14 @@ public class BlameMod {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public BlameMod() {
+        LOGGER.info("Initializing BlameMod...");
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
         // Register ourselves for server and other game events we are interested in
-        NeoForge.EVENT_BUS.register(this);
-        NeoForge.EVENT_BUS.register(NetsphereChunkPostProcessor.class);
+        MinecraftForge.EVENT_BUS.register(this);
+        // Note: NetsphereChunkPostProcessor is registered via @EventBusSubscriber annotation
+        LOGGER.info("BlameMod event handlers registered");
 
         // Register custom biomes
         ModBiomes.register(modEventBus);
@@ -48,11 +50,14 @@ public class BlameMod {
         // Register custom items
         ModItems.register(modEventBus);
         
+        LOGGER.info("BlameMod fully initialized!");
+        
         // Note: Dimensions (LevelStems) are registered via JSON data files in data/blamemod/dimension/
         // and data/blamemod/dimension_type/, not through DeferredRegister in 1.21+
 
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // TODO: Fix Config class - ModConfigSpec not found in ForgeGradle 6
+        // ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

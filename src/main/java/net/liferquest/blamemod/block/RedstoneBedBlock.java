@@ -36,7 +36,7 @@ public class RedstoneBedBlock extends Block {
 
         // If powered, teleport to Netsphere dimension
         if (player instanceof ServerPlayer serverPlayer) {
-            ServerLevel netsphereLevel = serverPlayer.server.getLevel(ModDimensions.NETSPHERE_LEVEL);
+            ServerLevel netsphereLevel = serverPlayer.server.getLevel(ModDimensions.NETSPHERE_LEVEL());
             
             if (netsphereLevel == null) {
                 player.sendSystemMessage(Component.literal("Netsphere dimension not found!"));
